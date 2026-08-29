@@ -1,0 +1,27 @@
+{
+  "school_name": "Geiger Elementary",
+  "academic_year": "2026-2027",
+  "last_updated": "2026-08-29",
+  "current_status": "School in Session",
+  "upcoming_events": [
+    { "date": "2026-09-07", "event": "Labor Day", "type": "No School" },
+    { "date": "2026-10-07", "event": "Early Release (2hr)", "type": "Early Release" },
+    { "date": "2026-10-09", "event": "Teacher Workshop", "type": "No School" },
+    { "date": "2026-10-12", "event": "Indigenous Peoples Day", "type": "No School" },
+    { "date": "2026-10-20", "event": "Parent/Teacher Conferences (8:30-7:00)", "type": "No School" },
+    { "date": "2026-10-22", "event": "Parent/Teacher Conferences (3:30-7:00)", "type": "Evening Event" },
+    { "date": "2026-11-04", "event": "Early Release (2hr)", "type": "Early Release" },
+    { "date": "2026-11-11", "event": "Veterans Day", "type": "No School" },
+    { "date": "2026-11-25", "event": "Teacher Workshop", "type": "No School" },
+    { "date": "2026-11-26", "event": "Thanksgiving Break", "type": "No School" },
+    { "date": "2026-11-27", "event": "Thanksgiving Break", "type": "No School" },
+    { "date": "2026-12-21", "event": "Winter Break Begins", "type": "No School" }
+  ],
+  "future_dates": {
+    "return_from_break": "2027-01-04",
+    "february_break": "2027-02-15",
+    "spring_conferences": ["2027-03-24", "2027-03-26"],
+    "april_break": "2027-04-19",
+    "graduation_lhs": "2027-06-04"
+  }
+}

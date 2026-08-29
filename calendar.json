@@ -3,286 +3,60 @@
   "academic_year": "2026-2027",
   "last_updated": "2026-08-29",
   "current_status": "School in Session",
-  "upcoming_events": [
-    {
-      "date": "2026-07-03",
-      "event": "Independence Day (Observed)",
-      "type": "Holiday"
-    },
-    {
-      "date": "2026-08-24",
-      "event": "Teacher Workshop Day",
-      "type": "No School"
-    },
-    {
-      "date": "2026-08-25",
-      "event": "Teacher Workshop Day",
-      "type": "No School"
-    },
-    {
-      "date": "2026-08-26",
-      "event": "First Day of School (Grades 1-9)",
-      "type": "School Day"
-    },
-    {
-      "date": "2026-08-27",
-      "event": "First Day of School (Pre-K, K & 10-12)",
-      "type": "School Day"
-    },
-    {
-      "date": "2026-09-07",
-      "event": "Labor Day",
-      "type": "No School"
-    },
-    {
-      "date": "2026-10-07",
-      "event": "Early Release (2hr)",
-      "type": "Early Release"
-    },
-    {
-      "date": "2026-10-09",
-      "event": "Teacher Workshop Day",
-      "type": "No School"
-    },
-    {
-      "date": "2026-10-12",
-      "event": "Indigenous Peoples Day",
-      "type": "No School"
-    },
-    {
-      "date": "2026-10-20",
-      "event": "Parent/Teacher Conferences (8:30-7:00)",
-      "type": "No School"
-    },
-    {
-      "date": "2026-10-22",
-      "event": "Parent/Teacher Conferences (3:30-7:00)",
-      "type": "Evening Event"
-    },
-    {
-      "date": "2026-11-04",
-      "event": "Early Release (2hr)",
-      "type": "Early Release"
-    },
-    {
-      "date": "2026-11-11",
-      "event": "Veterans Day",
-      "type": "No School"
-    },
-    {
-      "date": "2026-11-25",
-      "event": "Teacher Exchange Day",
-      "type": "No School"
-    },
-    {
-      "date": "2026-11-26",
-      "event": "November Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-11-27",
-      "event": "November Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-02",
-      "event": "Early Release (2hr)",
-      "type": "Early Release"
-    },
-    {
-      "date": "2026-12-21",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-22",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-23",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-24",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-25",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-26",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-27",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-28",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-29",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-30",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2026-12-31",
-      "event": "December Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-01-01",
-      "event": "January Break / New Year's Day",
-      "type": "No School"
-    },
-    {
-      "date": "2027-01-06",
-      "event": "Early Release (2hr)",
-      "type": "Early Release"
-    },
-    {
-      "date": "2027-01-18",
-      "event": "Martin Luther King Jr. Day",
-      "type": "No School"
-    },
-    {
-      "date": "2027-01-25",
-      "event": "Teacher Workshop Day",
-      "type": "No School"
-    },
-    {
-      "date": "2027-02-03",
-      "event": "Early Release (2hr)",
-      "type": "Early Release"
-    },
-    {
-      "date": "2027-02-15",
-      "event": "February Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-02-16",
-      "event": "February Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-02-17",
-      "event": "February Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-02-18",
-      "event": "February Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-02-19",
-      "event": "February Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-03-03",
-      "event": "Early Release (2hr)",
-      "type": "Early Release"
-    },
-    {
-      "date": "2027-03-10",
-      "event": "Eid al Fitr",
-      "type": "No School"
-    },
-    {
-      "date": "2027-03-19",
-      "event": "Teacher Workshop Day",
-      "type": "No School"
-    },
-    {
-      "date": "2027-03-24",
-      "event": "Spring Conferences",
-      "type": "Conference"
-    },
-    {
-      "date": "2027-03-26",
-      "event": "Spring Conferences",
-      "type": "Conference"
-    },
-    {
-      "date": "2027-04-07",
-      "event": "Early Release (2hr)",
-      "type": "Early Release"
-    },
-    {
-      "date": "2027-04-19",
-      "event": "April Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-04-20",
-      "event": "April Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-04-21",
-      "event": "April Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-04-22",
-      "event": "April Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-04-23",
-      "event": "April Break",
-      "type": "No School"
-    },
-    {
-      "date": "2027-05-05",
-      "event": "Early Release (2hr)",
-      "type": "Early Release"
-    },
-    {
-      "date": "2027-05-17",
-      "event": "Eid al Adha",
-      "type": "No School"
-    },
-    {
-      "date": "2027-05-18",
-      "event": "Teacher Exchange Day",
-      "type": "No School"
-    },
-    {
-      "date": "2027-05-31",
-      "event": "Memorial Day",
-      "type": "No School"
-    },
-    {
-      "date": "2027-06-04",
-      "event": "LHS Graduation",
-      "type": "Special Event"
-    },
-    {
-      "date": "2027-06-14",
-      "event": "Last Student Day (w/o snow days) - 2hr Early Release",
-      "type": "Early Release"
-    },
-    {
-      "date": "2027-06-18",
-      "event": "Juneteenth (Observed)",
-      "type": "No School"
-    }
+  "events": [
+    { "date": "2026-07-03", "title": "Independence Day (Observed)", "type": "Holiday" },
+    { "date": "2026-08-24", "title": "Teacher Workshop Day", "type": "No School" },
+    { "date": "2026-08-25", "title": "Teacher Workshop Day", "type": "No School" },
+    { "date": "2026-08-26", "title": "First Day of School (1-9)", "type": "School Day" },
+    { "date": "2026-08-27", "title": "First Day of School (PreK/K/10-12)", "type": "School Day" },
+    { "date": "2026-09-07", "title": "Labor Day", "type": "No School" },
+    { "date": "2026-10-07", "title": "Early Release (2hr)", "type": "Early Release" },
+    { "date": "2026-10-09", "title": "Teacher Workshop Day", "type": "No School" },
+    { "date": "2026-10-12", "title": "Indigenous Peoples Day", "type": "No School" },
+    { "date": "2026-10-20", "title": "Parent/Teacher Conferences (8:30-7:00)", "type": "No School" },
+    { "date": "2026-10-22", "title": "Parent/Teacher Conferences (3:30-7:00)", "type": "Evening Event" },
+    { "date": "2026-11-04", "title": "Early Release (2hr)", "type": "Early Release" },
+    { "date": "2026-11-11", "title": "Veterans Day", "type": "No School" },
+    { "date": "2026-11-25", "title": "Teacher Exchange Day", "type": "No School" },
+    { "date": "2026-11-26", "title": "November Break", "type": "No School" },
+    { "date": "2026-11-27", "title": "November Break", "type": "No School" },
+    { "date": "2026-12-02", "title": "Early Release (2hr)", "type": "Early Release" },
+    { "date": "2026-12-21", "title": "December Break", "type": "No School" },
+    { "date": "2026-12-22", "title": "December Break", "type": "No School" },
+    { "date": "2026-12-23", "title": "December Break", "type": "No School" },
+    { "date": "2026-12-24", "title": "December Break", "type": "No School" },
+    { "date": "2026-12-25", "title": "December Break", "type": "No School" },
+    { "date": "2026-12-28", "title": "December Break", "type": "No School" },
+    { "date": "2026-12-29", "title": "December Break", "type": "No School" },
+    { "date": "2026-12-30", "title": "December Break", "type": "No School" },
+    { "date": "2026-12-31", "title": "December Break", "type": "No School" },
+    { "date": "2027-01-01", "title": "January Break / New Year's Day", "type": "No School" },
+    { "date": "2027-01-06", "title": "Early Release (2hr)", "type": "Early Release" },
+    { "date": "2027-01-18", "title": "Martin Luther King Jr. Day", "type": "No School" },
+    { "date": "2027-01-25", "title": "Teacher Workshop Day", "type": "No School" },
+    { "date": "2027-02-03", "title": "Early Release (2hr)", "type": "Early Release" },
+    { "date": "2027-02-15", "title": "February Break", "type": "No School" },
+    { "date": "2027-02-16", "title": "February Break", "type": "No School" },
+    { "date": "2027-02-17", "title": "February Break", "type": "No School" },
+    { "date": "2027-02-18", "title": "February Break", "type": "No School" },
+    { "date": "2027-02-19", "title": "February Break", "type": "No School" },
+    { "date": "2027-03-03", "title": "Early Release (2hr)", "type": "Early Release" },
+    { "date": "2027-03-10", "title": "Eid al Fitr", "type": "No School" },
+    { "date": "2027-03-19", "title": "Teacher Workshop Day", "type": "No School" },
+    { "date": "2027-03-24", "title": "Spring Conferences", "type": "Evening Event" },
+    { "date": "2027-03-26", "title": "Spring Conferences", "type": "Evening Event" },
+    { "date": "2027-04-07", "title": "Early Release (2hr)", "type": "Early Release" },
+    { "date": "2027-04-19", "title": "April Break", "type": "No School" },
+    { "date": "2027-04-20", "title": "April Break", "type": "No School" },
+    { "date": "2027-04-21", "title": "April Break", "type": "No School" },
+    { "date": "2027-04-22", "title": "April Break", "type": "No School" },
+    { "date": "2027-04-23", "title": "April Break", "type": "No School" },
+    { "date": "2027-05-05", "title": "Early Release (2hr)", "type": "Early Release" },
+    { "date": "2027-05-17", "title": "Eid al Adha", "type": "No School" },
+    { "date": "2027-05-18", "title": "Teacher Exchange Day", "type": "No School" },
+    { "date": "2027-05-31", "title": "Memorial Day", "type": "No School" },
+    { "date": "2027-06-04", "title": "LHS Graduation", "type": "Special Event" },
+    { "date": "2027-06-14", "title": "Last Student Day / Early Release", "type": "Early Release" },
+    { "date": "2027-06-18", "title": "Juneteenth (Observed)", "type": "No School" }
   ]
 }

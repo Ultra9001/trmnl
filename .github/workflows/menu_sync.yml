@@ -1,0 +1,26 @@
+name: Sync School Menu to TRMNL
+
+on:
+  schedule:
+    - cron: '0 10 * * *' # Runs dynamically every morning at 6:00 AM EST
+  workflow_dispatch: # Gives you a single manual override button inside GitHub to test instantly
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v3
+
+      - name: Set up Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install parser requirements
+        run: pip install requests beautifulsoup4
+
+      - name: Execute script
+        run: python fetch_menu.py
+        env:
+          TRMNL_WEBHOOK_URL: ${{ secrets.TRMNL_WEBHOOK_URL }}

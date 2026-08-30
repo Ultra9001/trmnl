@@ -809,17 +809,27 @@ def parse_calendar(
     empty_days = 0
     populated_days = 0
 
-    # PayPAMS pads the grid with days from the adjacent month so the
-    # weeks line up (e.g. the September grid's first row shows Aug
-    # 30/31 before Sept 1 starts). The header only tells us the month
-    # for the *middle* of the grid, so we track which "phase" we're in
-    # by watching for the day number decreasing between cells:
-    #   -1 = trailing days of the PREVIOUS month (padding at the start)
-    #    0 = the header month itself
-    #   +1 = leading days of the NEXT month (padding at the end)
-    phase = 0
+    # Assigning the right month to each cell. The header label (via
+    # calendar_month) gives the TRUE month the grid is for, and every
+    # cell defaults to it. Grids CAN be padded with adjacent-month days,
+    # which we detect purely by the day-number sequence wrapping:
+    #   - a DROP (e.g. 31 -> 1) means we crossed from this month into the
+    #     NEXT month (trailing padding).
+    #   - a leading run that is HIGHER than where the month's own days
+    #     begin, followed by a drop, means PREVIOUS-month padding at the
+    #     very start. In practice PayPAMS uses a weekday-only ("FiveDay")
+    #     grid whose visible days climb monotonically within one month
+    #     (e.g. 3,4,5,...,31), so most months have no padding at all and
+    #     stay entirely in the header month.
+    #
+    # month_offset: -1 (prev), 0 (header month), +1 (next). We only ever
+    # move it forward on a descending step; leading padding is handled by
+    # a look-back once we know the month's real starting day.
+    month_offset = 0
     prev_day = None
+    cells = []
 
+    # First pass: collect (day, cell) in document order.
     for cell in table.find_all(
         "td"
     ):
@@ -842,22 +852,61 @@ def parse_calendar(
         if not day_text.isdigit():
             continue
 
-        day = int(
-            day_text
+        cells.append(
+            (int(day_text), cell)
         )
 
-        if prev_day is None and day != 1:
-            # Grid doesn't start on day 1 -> leading padding from the
-            # previous month.
-            phase = -1
-        elif prev_day is not None and day < prev_day:
-            # Day number dropped -> we've crossed a month boundary.
-            phase += 1
+    # Identify leading previous-month padding: if the sequence starts
+    # high and later drops to a small number, the leading high run is
+    # previous-month. We find the index of the first "descending step";
+    # everything before it that is >= the value it drops to is leading
+    # padding.
+    first_drop_index = None
 
-        prev_day = day
+    for index in range(1, len(cells)):
+
+        if cells[index][0] < cells[index - 1][0]:
+
+            first_drop_index = index
+            break
+
+    # A leading-padding run only exists if the FIRST drop happens early
+    # and the run before it is a descending-from-high tail of the prior
+    # month. Heuristic: leading padding is present only when the grid's
+    # very first day is greater than the day right after the first drop.
+    leading_padding_end = 0
+
+    if first_drop_index is not None:
+
+        drop_to = cells[first_drop_index][0]
+        run_start = cells[0][0]
+
+        # Leading padding is a run at the start whose values are LARGER
+        # than the day the sequence drops to (i.e. late-prior-month days
+        # sitting before the 1st of the header month).
+        if run_start > drop_to and cells[0][0] >= 15:
+
+            leading_padding_end = first_drop_index
+
+    for position, (day, cell) in enumerate(
+        cells
+    ):
 
         year, month = header_year, header_month
-        month += phase
+
+        if position < leading_padding_end:
+            # Leading padding -> previous month.
+            month -= 1
+        elif (
+            prev_day is not None
+            and day < prev_day
+            and position >= leading_padding_end
+        ):
+            # Sequence dropped after the header month -> next month.
+            month_offset = 1
+
+        if position >= leading_padding_end:
+            month += month_offset
 
         if month < 1:
             month += 12
@@ -865,6 +914,8 @@ def parse_calendar(
         elif month > 12:
             month -= 12
             year += 1
+
+        prev_day = day
 
         try:
 
@@ -1146,6 +1197,25 @@ def main():
             len(items),
         )
 
+        # Merge current + next month keyed by DATE, preferring whichever
+        # version of a given day actually has menu data. (A day can appear
+        # on both pages -- e.g. Aug 31 is real on the August grid but shows
+        # as empty leading-padding on the September grid. Keying on date
+        # alone, and preferring the populated version, stops an empty
+        # padding cell from shadowing the real menu.)
+        by_date = {}
+
+        for item in items:
+
+            existing = by_date.get(item["date"])
+
+            has_data = bool(item["main"])
+
+            if existing is None:
+                by_date[item["date"]] = item
+            elif has_data and not existing["main"]:
+                by_date[item["date"]] = item
+
         target, argument = find_next_month(
             soup
         )
@@ -1182,28 +1252,16 @@ def main():
                 len(next_items),
             )
 
-            known = {
-                (
-                    item["date"],
-                    item["main"],
-                    item["sides"],
-                )
-                for item in items
-            }
-
             for item in next_items:
 
-                key = (
-                    item["date"],
-                    item["main"],
-                    item["sides"],
-                )
+                existing = by_date.get(item["date"])
 
-                if key not in known:
+                has_data = bool(item["main"])
 
-                    items.append(
-                        item
-                    )
+                if existing is None:
+                    by_date[item["date"]] = item
+                elif has_data and not existing["main"]:
+                    by_date[item["date"]] = item
 
         else:
 
@@ -1211,6 +1269,8 @@ def main():
             print(
                 "No next-month postback found."
             )
+
+        items = list(by_date.values())
 
         today = datetime.date.today()
 
@@ -1224,6 +1284,10 @@ def main():
         upcoming = []
 
         for item in items:
+
+            if not item["main"]:
+                # Skip empty padding cells that carried no menu.
+                continue
 
             try:
 

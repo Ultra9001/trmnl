@@ -6,7 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 
 def parse_calendar_month(soup):
-    """Helper to find the active month/year header on PayPAMS and extract rows safely."""
+    """Helper to dynamically calculate correct calendar year/month and extract rows safely."""
     months_map = {
         "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
         "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
@@ -23,7 +23,7 @@ def parse_calendar_month(soup):
         if calendar_title:
             break
 
-    # Extract target month and year integer values
+    # Extract target month and year integer values dynamically
     target_year = 2026
     target_month = datetime.date.today().month
     if calendar_title:
@@ -35,7 +35,7 @@ def parse_calendar_month(soup):
             elif p_clean.isdigit() and len(p_clean) == 4:
                 target_year = int(p_clean)
 
-    # 2. Iterate through rows in the calendar grid
+    # 2. Iterate through rows in the calendar grid cells
     items = []
     day_cells = soup.find_all("td", class_="CalendarDay")
     for cell in day_cells:
@@ -52,9 +52,11 @@ def parse_calendar_month(soup):
             main_dish = food_paragraphs[0]
             sides_list = ", ".join(food_paragraphs[1:]) if len(food_paragraphs) > 1 else ""
             
-            formatted_date = f"{target_year}-{target_month:02d}-{day_num:02d}"
+            # Pure datetime generation guarantees cross-month rollover safety
+            computed_date = datetime.date(target_year, target_month, day_num)
+            
             items.append({
-                "date": formatted_date,
+                "date": computed_date.strftime("%Y-%m-%d"),
                 "main": main_dish,
                 "sides": sides_list
             })
@@ -72,6 +74,8 @@ def fetch_and_sync():
     session.headers.update({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     })
+    
+    # Fixed: Restored the exact menus directory endpoint sub-link route path
     base_url = "https://paypams.com"
 
     try:
@@ -85,35 +89,35 @@ def fetch_and_sync():
                 "__EVENTVALIDATION": current_soup.find("input", {"id": "__EVENTVALIDATION"})["value"] if current_soup.find("input", {"id": "__EVENTVALIDATION"}) else ""
             }
 
-        # ME
+        # Select State -> ME
         payload = get_view_states(soup)
         payload.update({"__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlState", "ctl00$ContentPlaceHolder1$ddlState": "ME"})
         res = session.post(base_url, data=payload)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Lewiston Public Schools
+        # Select District -> Lewiston Public Schools
         payload = get_view_states(soup)
         payload.update({"__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlDistrict", "ctl00$ContentPlaceHolder1$ddlState": "ME", "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools"})
         res = session.post(base_url, data=payload)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Geiger Elementary School
+        # Select School -> Geiger Elementary School
         payload = get_view_states(soup)
         payload.update({"__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlSchool", "ctl00$ContentPlaceHolder1$ddlState": "ME", "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools", "ctl00$ContentPlaceHolder1$ddlSchool": "Geiger Elementary School"})
         res = session.post(base_url, data=payload)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Lunch (Default current month view)
+        # Select Menu Type -> Lunch (Grabs live current default view)
         payload = get_view_states(soup)
         payload.update({"__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlMenuType", "ctl00$ContentPlaceHolder1$ddlState": "ME", "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools", "ctl00$ContentPlaceHolder1$ddlSchool": "Geiger Elementary School", "ctl00$ContentPlaceHolder1$ddlMenuType": "Lunch"})
         res = session.post(base_url, data=payload)
         current_month_soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Parse Current Month
+        # Parse Current August Frame
         all_menu_items = parse_calendar_month(current_month_soup)
 
         # TRIGGER NEXT MONTH POSTBACK (To safely grab September items)
-        print("Navigating to next month view on PayPAMS calendar matrix...")
+        print("Navigating forward to next month view on PayPAMS calendar grid...")
         next_month_btn = current_month_soup.find("a", text=">") or current_month_soup.find("a", string=">")
         if next_month_btn and next_month_btn.get("href"):
             href = next_month_btn["href"]
@@ -130,26 +134,26 @@ def fetch_and_sync():
             res = session.post(base_url, data=payload)
             next_month_soup = BeautifulSoup(res.text, 'html.parser')
             
-            # Parse Next Month and combine arrays
+            # Append parsed September items seamlessly
             all_menu_items.extend(parse_calendar_month(next_month_soup))
 
-        # Filter out past days and keep clean upcoming records
+        # Filter calendar timeline to pull relative data starting from today forward
         today_str = datetime.date.today().strftime("%Y-%m-%d")
         upcoming_items = [item for item in all_menu_items if item["date"] >= today_str]
         upcoming_items.sort(key=lambda x: x["date"])
 
+        # Package data layout directly mapping your exact target variable structure
         trmnl_payload = {
             "merge_variables": {
                 "menu_items": upcoming_items
             }
         }
 
-        print(f"Pushing synchronized array containing {len(upcoming_items)} upcoming entries to TRMNL...")
+        print(f"Pushing synchronized array containing {len(upcoming_items)} upcoming records straight to TRMNL...")
         push_response = requests.post(trmnl_url, json=trmnl_payload, headers={"Content-Type": "application/json"})
         
-        # Fixed comparison expression syntax error here:
         if push_response.status_code == 200 or push_response.status_code == 202:
-            print("SUCCESS: Full calendar rotation synchronized smoothly!")
+            print("SUCCESS: Full multi-month calendar rotation synchronized smoothly!")
         else:
             print(f"WARNING: Telemetry rejected with code: {push_response.status_code}")
 

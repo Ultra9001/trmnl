@@ -116,7 +116,6 @@ def fetch_and_sync():
         print("Navigating to next month view on PayPAMS calendar matrix...")
         next_month_btn = current_month_soup.find("a", text=">") or current_month_soup.find("a", string=">")
         if next_month_btn and next_month_btn.get("href"):
-            # Extract target command from ASP postback javascript __doPostBack('TARGET','')
             href = next_month_btn["href"]
             target = href.split("'")[1] if "'" in href else "ctl00$ContentPlaceHolder1$Calendar1"
             
@@ -148,7 +147,8 @@ def fetch_and_sync():
         print(f"Pushing synchronized array containing {len(upcoming_items)} upcoming entries to TRMNL...")
         push_response = requests.post(trmnl_url, json=trmnl_payload, headers={"Content-Type": "application/json"})
         
-        if push_response.status_code in:
+        # Fixed comparison expression syntax error here:
+        if push_response.status_code == 200 or push_response.status_code == 202:
             print("SUCCESS: Full calendar rotation synchronized smoothly!")
         else:
             print(f"WARNING: Telemetry rejected with code: {push_response.status_code}")

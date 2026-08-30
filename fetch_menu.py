@@ -2,180 +2,102 @@ import os
 import sys
 import datetime
 import requests
-from bs4 import BeautifulSoup
 
-def parse_calendar_month(soup):
-    """Extracts rows from the PayPAMS calendar matrix safely."""
-    months_map = {
-        "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
-        "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
+# --- Fill these in once (see linqconnect.com Network tab -> FamilyMenu request) ---
+BUILDING_ID = "PASTE-YOUR-BUILDING-ID-HERE"
+DISTRICT_ID = "PASTE-YOUR-DISTRICT-ID-HERE"
+SERVING_SESSION = "Lunch"  # matches the ServingSession field in the API response
+DAYS_AHEAD = 10            # how many days out to request/display
+
+
+def fetch_menu_json():
+    today = datetime.date.today()
+    end = today + datetime.timedelta(days=DAYS_AHEAD)
+
+    params = {
+        "buildingId": BUILDING_ID,
+        "districtId": DISTRICT_ID,
+        "startDate": today.strftime("%m-%d-%Y"),
+        "endDate": end.strftime("%m-%d-%Y"),
     }
-    
-    calendar_title = ""
-    for el in soup.find_all(text=True):
-        text_clean = el.strip().lower()
-        for month_name in months_map:
-            if month_name in text_clean and ("202" in text_clean):
-                calendar_title = text_clean
-                break
-        if calendar_title:
-            break
+    resp = requests.get("https://api.linqconnect.com/api/FamilyMenu", params=params, timeout=15)
+    resp.raise_for_status()
+    return resp.json()
 
-    target_year = 2026
-    target_month = datetime.date.today().month
-    if calendar_title:
-        parts = calendar_title.split()
-        for p in parts:
-            p_clean = p.strip("<>(), ")
-            if p_clean in months_map:
-                target_month = months_map[p_clean]
-            elif p_clean.isdigit() and len(p_clean) == 4:
-                target_year = int(p_clean)
 
+def extract_items(api_response):
+    """
+    Flattens the LINQ Connect response into the same simple shape the TRMNL
+    template already expects: [{"date": "YYYY-MM-DD", "main": ..., "sides": ...}]
+    """
     items = []
-    day_cells = soup.find_all("td", class_="CalendarDay")
-    for cell in day_cells:
-        try:
-            day_num_el = cell.find("span") or cell.find(style=lambda v: v and "font-weight:bold" in v.lower())
-            if not day_num_el or not day_num_el.text.strip().isdigit():
-                continue
-            day_num = int(day_num_el.text.strip())
-            
-            food_paragraphs = [p.text.strip() for p in cell.find_all("p") if p.text.strip()]
-            if not food_paragraphs:
-                continue
-            
-            main_dish = food_paragraphs[0]
-            sides_list = ", ".join(food_paragraphs[1:]) if len(food_paragraphs) > 1 else ""
-            
-            computed_date = datetime.date(target_year, target_month, day_num)
-            items.append({
-                "date": computed_date.strftime("%Y-%m-%d"),
-                "main": main_dish,
-                "sides": sides_list
-            })
-        except Exception:
+    sessions = api_response.get("FamilyMenuSessions") or []
+
+    for session in sessions:
+        if SERVING_SESSION.lower() not in (session.get("ServingSession") or "").lower():
             continue
+
+        for plan in session.get("MenuPlans") or []:
+            for day in plan.get("Days") or []:
+                date_str = day.get("Date")
+                if not date_str:
+                    continue
+
+                recipe_names = []
+                for meal in day.get("MenuMeals") or []:
+                    for category in meal.get("RecipeCategories") or []:
+                        for recipe in category.get("Recipes") or []:
+                            name = (recipe.get("RecipeName") or "").strip()
+                            if name:
+                                recipe_names.append(name)
+
+                if not recipe_names:
+                    continue  # no school / no menu posted that day
+
+                # Parse whatever date format the API gives back (it's typically
+                # an ISO-ish string like "2026-09-02T00:00:00").
+                try:
+                    parsed_date = datetime.datetime.fromisoformat(date_str.split("T")[0]).date()
+                except ValueError:
+                    continue
+
+                items.append({
+                    "date": parsed_date.strftime("%Y-%m-%d"),
+                    "main": recipe_names[0],
+                    "sides": ", ".join(recipe_names[1:]),
+                })
+
+    items.sort(key=lambda x: x["date"])
     return items
 
-def fetch_and_sync():
+
+def push_to_trmnl(items):
     trmnl_url = os.environ.get("TRMNL_WEBHOOK_URL")
     if not trmnl_url:
         print("CRITICAL ERROR: TRMNL_WEBHOOK_URL environment variable is missing!")
         sys.exit(1)
 
-    session = requests.Session()
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Origin": "https://paypams.com",
-        "Referer": "https://paypams.com"
-    })
-    
-    base_url = "https://paypams.com"
+    payload = {"merge_variables": {"menu_items": items}}
+    resp = requests.post(trmnl_url, json=payload, headers={"Content-Type": "application/json"}, timeout=15)
 
-    try:
-        # Standard initial page load
-        res = session.get(base_url)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        def get_view_states(current_soup):
-            return {
-                "__VIEWSTATE": current_soup.find("input", {"id": "__VIEWSTATE"})["value"] if current_soup.find("input", {"id": "__VIEWSTATE"}) else "",
-                "__VIEWSTATEGENERATOR": current_soup.find("input", {"id": "__VIEWSTATEGENERATOR"})["value"] if current_soup.find("input", {"id": "__VIEWSTATEGENERATOR"}) else "",
-                "__EVENTVALIDATION": current_soup.find("input", {"id": "__EVENTVALIDATION"})["value"] if current_soup.find("input", {"id": "__EVENTVALIDATION"}) else ""
-            }
+    if resp.status_code in (200, 202):
+        print(f"SUCCESS: pushed {len(items)} menu items to TRMNL.")
+    else:
+        print(f"WARNING: TRMNL rejected the push - status {resp.status_code}")
+        print(resp.text[:500])
 
-        # Step 1: Select State -> ME
-        print("Selecting state...")
-        payload = get_view_states(soup)
-        payload.update({
-            "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlState",
-            "ctl00$ContentPlaceHolder1$ddlState": "ME"
-        })
-        res = session.post(base_url, data=payload)
-        soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Step 2: Select District -> Lewiston Public Schools
-        print("Selecting district...")
-        payload = get_view_states(soup)
-        payload.update({
-            "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlDistrict",
-            "ctl00$ContentPlaceHolder1$ddlState": "ME",
-            "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools"
-        })
-        res = session.post(base_url, data=payload)
-        soup = BeautifulSoup(res.text, 'html.parser')
-
-        # Step 3: Select School -> Geiger Elementary School
-        print("Selecting school...")
-        payload = get_view_states(soup)
-        payload.update({
-            "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlSchool",
-            "ctl00$ContentPlaceHolder1$ddlState": "ME",
-            "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools",
-            "ctl00$ContentPlaceHolder1$ddlSchool": "Geiger Elementary School"
-        })
-        res = session.post(base_url, data=payload)
-        soup = BeautifulSoup(res.text, 'html.parser')
-
-        # Step 4: Select Menu Type -> Lunch
-        print("Selecting lunch menu...")
-        payload = get_view_states(soup)
-        payload.update({
-            "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlMenuType",
-            "ctl00$ContentPlaceHolder1$ddlState": "ME",
-            "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools",
-            "ctl00$ContentPlaceHolder1$ddlSchool": "Geiger Elementary School",
-            "ctl00$ContentPlaceHolder1$ddlMenuType": "Lunch"
-        })
-        res = session.post(base_url, data=payload)
-        current_month_soup = BeautifulSoup(res.text, 'html.parser')
-
-        # Parse Current Month
-        all_menu_items = parse_calendar_month(current_month_soup)
-
-        # Step 5: Advance Calendar -> Next Month (September)
-        print("Advancing to next month...")
-        next_month_btn = current_month_soup.find("a", text=">") or current_month_soup.find("a", string=">")
-        if next_month_btn and next_month_btn.get("href"):
-            href = next_month_btn["href"]
-            target = href.split("'") if "'" in href else "ctl00$ContentPlaceHolder1$Calendar1"
-            
-            payload = get_view_states(current_month_soup)
-            payload.update({
-                "__EVENTTARGET": target,
-                "ctl00$ContentPlaceHolder1$ddlState": "ME",
-                "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools",
-                "ctl00$ContentPlaceHolder1$ddlSchool": "Geiger Elementary School",
-                "ctl00$ContentPlaceHolder1$ddlMenuType": "Lunch"
-            })
-            res = session.post(base_url, data=payload)
-            next_month_soup = BeautifulSoup(res.text, 'html.parser')
-            
-            all_menu_items.extend(parse_calendar_month(next_month_soup))
-
-        # Filter timeline cleanly starting from today forward
-        today_str = datetime.date.today().strftime("%Y-%m-%d")
-        upcoming_items = [item for item in all_menu_items if item["date"] >= today_str]
-        upcoming_items.sort(key=lambda x: x["date"])
-
-        trmnl_payload = {
-            "merge_variables": {
-                "menu_items": upcoming_items
-            }
-        }
-
-        print(f"Pushing payload data array containing {len(upcoming_items)} live records straight to TRMNL...")
-        push_response = requests.post(trmnl_url, json=trmnl_payload, headers={"Content-Type": "application/json"})
-        
-        if push_response.status_code == 200 or push_response.status_code == 202:
-            print("SUCCESS: Dynamic school menu synchronized cleanly!")
-        else:
-            print(f"WARNING: Telemetry rejected with status code: {push_response.status_code}")
-
-    except Exception as err:
-        print(f"CRITICAL PARSER ERROR: {err}")
+def main():
+    if "PASTE-YOUR" in BUILDING_ID or "PASTE-YOUR" in DISTRICT_ID:
+        print("CRITICAL ERROR: set BUILDING_ID and DISTRICT_ID at the top of this file first.")
         sys.exit(1)
 
+    data = fetch_menu_json()
+    items = extract_items(data)
+    today_str = datetime.date.today().strftime("%Y-%m-%d")
+    upcoming = [i for i in items if i["date"] >= today_str]
+    push_to_trmnl(upcoming)
+
+
 if __name__ == "__main__":
-    fetch_and_sync()
+    main()

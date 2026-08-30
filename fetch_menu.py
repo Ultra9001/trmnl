@@ -125,10 +125,11 @@ def fetch_and_sync():
             }
         }
 
-        print(f"Pushing payload data array containing {len(menu_items)} entries straight to TRMNL backend...")
+        print(f"Pushing payload data array straight to TRMNL backend...")
         push_response = requests.post(trmnl_url, json=trmnl_payload, headers={"Content-Type": "application/json"})
         
-        if push_response.status_code in:
+        # Fixed line 131 syntax error expression:
+        if push_response.status_code == 200 or push_response.status_code == 202:
             print("SUCCESS: Production school calendar synced to TRMNL dashboard device!")
         else:
             print(f"WARNING: Transmission rejected with status code: {push_response.status_code}")

@@ -154,6 +154,21 @@ def fetch_and_sync():
         res = session.get(BASE_URL)
         soup = BeautifulSoup(res.text, "html.parser")
 
+        print(f"Response status: {res.status_code}")
+        print(f"Final URL after redirects: {res.url}")
+        title_el = soup.find("title")
+        print(f"Page title: {title_el.get_text(strip=True) if title_el else '(none)'}")
+
+        all_selects = soup.find_all("select")
+        print(f"Found {len(all_selects)} <select> elements on the page:")
+        for sel in all_selects:
+            print(f"  id={sel.get('id')!r} name={sel.get('name')!r} option_count={len(sel.find_all('option'))}")
+
+        if not all_selects:
+            print("----- First 3000 chars of response body -----")
+            print(res.text[:3000])
+            print("----- End snippet -----")
+
         school_value, school_options = find_select_value(soup, "h_DD_Schools", SCHOOL_NAME)
         print("Schools seen in h_DD_Schools dropdown:")
         for text, value in school_options:

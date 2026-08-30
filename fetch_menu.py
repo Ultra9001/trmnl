@@ -1011,6 +1011,59 @@ def find_next_month(
     return None, None
 
 
+def trim_payload(
+    upcoming,
+    max_sides=3,
+    max_bytes=1900,
+):
+    # TRMNL's webhook has a hard payload-size ceiling (2KB on the free
+    # tier). Full daily alternate/side lists blow past that fast, so:
+    #   1. Cap each day's "sides" to the first few entries.
+    #   2. If it's STILL too big, drop days off the end (soonest days
+    #      matter most) until it fits.
+    trimmed = []
+
+    for item in upcoming:
+
+        sides_list = [
+            side.strip()
+            for side in item["sides"].split(",")
+            if side.strip()
+        ]
+
+        trimmed.append(
+            {
+                "date": item["date"],
+                "main": item["main"],
+                "sides": ", ".join(
+                    sides_list[:max_sides]
+                ),
+            }
+        )
+
+    while trimmed:
+
+        payload = {
+            "merge_variables": {
+                "menu_items": trimmed,
+            }
+        }
+
+        size = len(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+            ).encode("utf-8")
+        )
+
+        if size <= max_bytes:
+            return trimmed, size
+
+        trimmed = trimmed[:-1]
+
+    return trimmed, 0
+
+
 def main():
 
     webhook = os.environ.get(
@@ -1196,6 +1249,10 @@ def main():
             key=lambda item: item["date"]
         )
 
+        upcoming, payload_size = trim_payload(
+            upcoming
+        )
+
         print()
         print(
             "UPCOMING LUNCHES"
@@ -1232,6 +1289,13 @@ def main():
         save_json(
             "trmnl_payload.json",
             payload,
+        )
+
+        print(
+            "Payload size: {} bytes ({} lunches)".format(
+                payload_size,
+                len(upcoming),
+            )
         )
 
         if not upcoming:

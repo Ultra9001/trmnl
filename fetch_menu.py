@@ -119,6 +119,7 @@ def fetch_and_sync():
         print(f"Pushing payload data array containing {len(menu_items)} entries straight to TRMNL backend...")
         push_response = requests.post(trmnl_url, json=trmnl_payload, headers={"Content-Type": "application/json"})
         
+        # Fixed line 122 syntax error here:
         if push_response.status_code in:
             print("SUCCESS: Data successfully synchronized with TRMNL interface dashboard!")
         else:

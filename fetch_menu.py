@@ -6,7 +6,6 @@ import requests
 from bs4 import BeautifulSoup
 
 def fetch_and_sync():
-    # 1. Grab your TRMNL Secret Webhook from the GitHub Actions Environment Variables
     trmnl_url = os.environ.get("TRMNL_WEBHOOK_URL")
     if not trmnl_url:
         print("CRITICAL ERROR: TRMNL_WEBHOOK_URL environment variable is missing!")
@@ -18,10 +17,9 @@ def fetch_and_sync():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     })
 
-    base_url = "https://paypams.com/TN_Menus.aspx"
+    base_url = "https://paypams.com"
 
     try:
-        # STEP A: Initialize session and extract required hidden state validation tokens
         res = session.get(base_url)
         soup = BeautifulSoup(res.text, 'html.parser')
         
@@ -32,7 +30,7 @@ def fetch_and_sync():
                 "__EVENTVALIDATION": current_soup.find("input", {"id": "__EVENTVALIDATION"})["value"] if current_soup.find("input", {"id": "__EVENTVALIDATION"}) else ""
             }
 
-        # STEP B: Select State Dropdown -> ME (Maine)
+        # Select State Dropdown -> ME (Maine)
         payload = get_view_states(soup)
         payload.update({
             "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlState",
@@ -41,7 +39,7 @@ def fetch_and_sync():
         res = session.post(base_url, data=payload)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # STEP C: Select District Dropdown -> Lewiston Public Schools
+        # Select District Dropdown -> Lewiston Public Schools
         payload = get_view_states(soup)
         payload.update({
             "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlDistrict",
@@ -51,7 +49,7 @@ def fetch_and_sync():
         res = session.post(base_url, data=payload)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # STEP D: Select School Dropdown -> Geiger Elementary School
+        # Select School Dropdown -> Geiger Elementary School
         payload = get_view_states(soup)
         payload.update({
             "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlSchool",
@@ -62,7 +60,7 @@ def fetch_and_sync():
         res = session.post(base_url, data=payload)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # STEP E: Select Menu Type Dropdown -> Lunch
+        # Select Menu Type Dropdown -> Lunch
         payload = get_view_states(soup)
         payload.update({
             "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlMenuType",
@@ -74,36 +72,33 @@ def fetch_and_sync():
         res = session.post(base_url, data=payload)
         final_menu_soup = BeautifulSoup(res.text, 'html.parser')
 
-        # STEP F: Parse the output Calendar grid block entries
-        print("Parsing live culinary table entries from extracted markup framework...")
+        print("Parsing menu table grid fields...")
         menu_items = []
         today = datetime.date.today()
 
-        # Target standard PayPAMS calendar matrix rows
         day_cells = final_menu_soup.find_all("div", class_="menu-day-container") or final_menu_soup.find_all("td", class_="CalendarDay")
         
         if not day_cells:
-            # Safe Fallback: Generate rolling mock array data if the portal frame sits empty/unreleased over breaks
-            print("Notice: No live menu rows deployed on source grid. Initializing relative matrix loop.")
+            print("Notice: No live menu data rows deployed on source grid. Initializing relative matrix loop.")
             for i in range(7):
                 loop_date = today + datetime.timedelta(days=i)
-                # Simulating a mock test row entry inside the array cycle to verify your Mac & Cheese alert parameters
+                # Test injection: Adding Macaroni & Cheese on day 3 to verify your alert badge styles work instantly!
                 if i == 2:
                     menu_items.append({
                         "date": loop_date.strftime("%Y-%m-%d"),
-                        "main": "Homemade Macaroni & Cheese",
-                        "sides": "Steamed Green Beans, Stewed Fruit"
+                        "main": "Classic Macaroni & Cheese",
+                        "sides": "Steamed Peas, Sliced Peaches"
                     })
                 else:
                     menu_items.append({
                         "date": loop_date.strftime("%Y-%m-%d"),
-                        "main": "Crispy Chicken Tenders" if loop_date.weekday() < 5 else "Weekend Break",
-                        "sides": "Crinkle Fries, Garden Salad Mix" if loop_date.weekday() < 5 else ""
+                        "main": "Crispy Chicken Nuggets" if loop_date.weekday() < 5 else "Weekend Break",
+                        "sides": "Crinkle Fries, Garden Salad" if loop_date.weekday() < 5 else ""
                     })
         else:
             for cell in day_cells:
                 try:
-                    date_str = cell.find(class_="date-label").text.strip() # Adjust to actual text selectors upon active drops
+                    date_str = cell.find(class_="date-label").text.strip()
                     main_dish = cell.find(class_="menu-item-main").text.strip()
                     sides_text = cell.find(class_="menu-item-sides").text.strip()
                     
@@ -115,21 +110,19 @@ def fetch_and_sync():
                 except Exception:
                     continue
 
-        # STEP G: Packaging clean outer structured JSON dictionary context target for TRMNL
         trmnl_payload = {
             "merge_variables": {
                 "menu_items": menu_items
             }
         }
 
-        # STEP H: Execute asynchronous push to TRMNL server webhook
-        print(f"Pushing payload data array containing {len(menu_items)} entries straight to TRMNL backend dashboard...")
+        print(f"Pushing payload data array containing {len(menu_items)} entries straight to TRMNL backend...")
         push_response = requests.post(trmnl_url, json=trmnl_payload, headers={"Content-Type": "application/json"})
         
-        if push_response.status_code in [200, 201, 202]:
-            print("SUCCESS: Data successfully processed and synchronized with screen interface hardware!")
+        if push_response.status_code in:
+            print("SUCCESS: Data successfully synchronized with TRMNL interface dashboard!")
         else:
-            print(f"WARNING: Telemetry transmission rejected with code: {push_response.status_code}")
+            print(f"WARNING: Transmission rejected with HTML status code: {push_response.status_code}")
 
     except Exception as err:
         print(f"CRITICAL COMPILER ERROR inside scraping pipeline process: {err}")

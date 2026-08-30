@@ -5,6 +5,30 @@ import datetime
 import requests
 from bs4 import BeautifulSoup
 
+def update_form_tokens(response_text, current_tokens):
+    """Decodes ASP.NET pipe-delimited strings or extracts standard HTML input tags."""
+    # 1. Check if the server returned a vertical-bar split AJAX payload chunk array
+    if "|" in response_text:
+        chunks = response_text.split("|")
+        updated = current_tokens.copy()
+        for i in range(len(chunks)):
+            if chunks[i] == "__VIEWSTATE":
+                updated["__VIEWSTATE"] = chunks[i+1]
+            elif chunks[i] == "__VIEWSTATEGENERATOR":
+                updated["__VIEWSTATEGENERATOR"] = chunks[i+1]
+            elif chunks[i] == "__EVENTVALIDATION":
+                updated["__EVENTVALIDATION"] = chunks[i+1]
+        return updated
+        
+    # 2. Regular HTML fallback extractor loop container setup
+    soup = BeautifulSoup(response_text, 'html.parser')
+    return {
+        "__VIEWSTATE": soup.find("input", {"id": "__VIEWSTATE"})["value"] if soup.find("input", {"id": "__VIEWSTATE"}) else current_tokens.get("__VIEWSTATE", ""),
+        "__VIEWSTATEGENERATOR": soup.find("input", {"id": "__VIEWSTATEGENERATOR"})["value"] if soup.find("input", {"id": "__VIEWSTATEGENERATOR"}) else current_tokens.get("__VIEWSTATEGENERATOR", ""),
+        "__EVENTVALIDATION": soup.find("input", {"id": "__EVENTVALIDATION"})["value"] if soup.find("input", {"id": "__EVENTVALIDATION"}) else current_tokens.get("__EVENTVALIDATION", ""),
+        "__ASYNCPOST": "true"
+    }
+
 def parse_calendar_month(soup):
     """Helper to dynamically calculate correct calendar year/month and extract rows safely."""
     months_map = {
@@ -66,7 +90,6 @@ def fetch_and_sync():
         sys.exit(1)
 
     session = requests.Session()
-    # Fixed: Injected standard browser network context headers
     session.headers.update({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "*/*",
@@ -80,30 +103,22 @@ def fetch_and_sync():
 
     try:
         res = session.get(base_url)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        def get_view_states(current_soup):
-            return {
-                "__VIEWSTATE": current_soup.find("input", {"id": "__VIEWSTATE"})["value"] if current_soup.find("input", {"id": "__VIEWSTATE"}) else "",
-                "__VIEWSTATEGENERATOR": current_soup.find("input", {"id": "__VIEWSTATEGENERATOR"})["value"] if current_soup.find("input", {"id": "__VIEWSTATEGENERATOR"}) else "",
-                "__EVENTVALIDATION": current_soup.find("input", {"id": "__EVENTVALIDATION"})["value"] if current_soup.find("input", {"id": "__EVENTVALIDATION"}) else "",
-                "__ASYNCPOST": "true"
-            }
+        tokens = update_form_tokens(res.text, {})
 
         # Step 1: Select State -> ME
-        print("Submitting state handshakes...")
-        payload = get_view_states(soup)
+        print("Submitting state verification matrix data...")
+        payload = tokens.copy()
         payload.update({
             "ctl00$ScriptManager1": "ctl00$ContentPlaceHolder1$UpdatePanel1|ctl00$ContentPlaceHolder1$ddlState",
             "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlState",
             "ctl00$ContentPlaceHolder1$ddlState": "ME"
         })
         res = session.post(base_url, data=payload)
-        soup = BeautifulSoup(res.text, 'html.parser')
+        tokens = update_form_tokens(res.text, tokens)
 
         # Step 2: Select District -> Lewiston Public Schools
-        print("Submitting district verification queries...")
-        payload = get_view_states(soup)
+        print("Submitting district routing locks...")
+        payload = tokens.copy()
         payload.update({
             "ctl00$ScriptManager1": "ctl00$ContentPlaceHolder1$UpdatePanel1|ctl00$ContentPlaceHolder1$ddlDistrict",
             "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlDistrict",
@@ -111,11 +126,11 @@ def fetch_and_sync():
             "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools"
         })
         res = session.post(base_url, data=payload)
-        soup = BeautifulSoup(res.text, 'html.parser')
+        tokens = update_form_tokens(res.text, tokens)
 
         # Step 3: Select School -> Geiger Elementary School
-        print("Submitting targeted campus layout locks...")
-        payload = get_view_states(soup)
+        print("Submitting campus specific form parameters...")
+        payload = tokens.copy()
         payload.update({
             "ctl00$ScriptManager1": "ctl00$ContentPlaceHolder1$UpdatePanel1|ctl00$ContentPlaceHolder1$ddlSchool",
             "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlSchool",
@@ -124,11 +139,11 @@ def fetch_and_sync():
             "ctl00$ContentPlaceHolder1$ddlSchool": "Geiger Elementary School"
         })
         res = session.post(base_url, data=payload)
-        soup = BeautifulSoup(res.text, 'html.parser')
+        tokens = update_form_tokens(res.text, tokens)
 
         # Step 4: Select Menu Type -> Lunch
-        print("Locking lunch calendar session panel...")
-        payload = get_view_states(soup)
+        print("Locking target lunch calendar selection grid...")
+        payload = tokens.copy()
         payload.update({
             "ctl00$ScriptManager1": "ctl00$ContentPlaceHolder1$UpdatePanel1|ctl00$ContentPlaceHolder1$ddlMenuType",
             "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlMenuType",
@@ -138,7 +153,11 @@ def fetch_and_sync():
             "ctl00$ContentPlaceHolder1$ddlMenuType": "Lunch"
         })
         res = session.post(base_url, data=payload)
-        current_month_soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # When update panels return text data, reconstruct the clean markup context layout
+        soup_text = res.text.split("|")[-1] if "|" in res.text else res.text
+        current_month_soup = BeautifulSoup(soup_text if "<html" in soup_text or "<td" in soup_text else res.text, 'html.parser')
+        tokens = update_form_tokens(res.text, tokens)
 
         # Parse Current August Data Block
         all_menu_items = parse_calendar_month(current_month_soup)
@@ -150,7 +169,7 @@ def fetch_and_sync():
             href = next_month_btn["href"]
             target = href.split("'")[1] if "'" in href else "ctl00$ContentPlaceHolder1$Calendar1"
             
-            payload = get_view_states(current_month_soup)
+            payload = tokens.copy()
             payload.update({
                 "ctl00$ScriptManager1": f"ctl00$ContentPlaceHolder1$UpdatePanel1|{target}",
                 "__EVENTTARGET": target,
@@ -160,8 +179,9 @@ def fetch_and_sync():
                 "ctl00$ContentPlaceHolder1$ddlMenuType": "Lunch"
             })
             res = session.post(base_url, data=payload)
-            next_month_soup = BeautifulSoup(res.text, 'html.parser')
             
+            sept_text = res.text.split("|")[-1] if "|" in res.text else res.text
+            next_month_soup = BeautifulSoup(sept_text if "<td" in sept_text else res.text, 'html.parser')
             all_menu_items.extend(parse_calendar_month(next_month_soup))
 
         # Filter timeline cleanly starting from today forward

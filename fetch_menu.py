@@ -12,7 +12,6 @@ def parse_calendar_month(soup):
         "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
     }
     
-    # 1. Dynamically locate the calendar month/year text header
     calendar_title = ""
     for el in soup.find_all(text=True):
         text_clean = el.strip().lower()
@@ -23,7 +22,6 @@ def parse_calendar_month(soup):
         if calendar_title:
             break
 
-    # Extract target month and year integer values dynamically
     target_year = 2026
     target_month = datetime.date.today().month
     if calendar_title:
@@ -35,7 +33,6 @@ def parse_calendar_month(soup):
             elif p_clean.isdigit() and len(p_clean) == 4:
                 target_year = int(p_clean)
 
-    # 2. Iterate through rows in the calendar grid cells
     items = []
     day_cells = soup.find_all("td", class_="CalendarDay")
     for cell in day_cells:
@@ -52,9 +49,7 @@ def parse_calendar_month(soup):
             main_dish = food_paragraphs[0]
             sides_list = ", ".join(food_paragraphs[1:]) if len(food_paragraphs) > 1 else ""
             
-            # Pure datetime generation guarantees cross-month rollover safety
             computed_date = datetime.date(target_year, target_month, day_num)
-            
             items.append({
                 "date": computed_date.strftime("%Y-%m-%d"),
                 "main": main_dish,
@@ -71,11 +66,16 @@ def fetch_and_sync():
         sys.exit(1)
 
     session = requests.Session()
+    # Fixed: Injected standard browser network context headers
     session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-MicrosoftAjax": "Delta=true",
+        "Origin": "https://paypams.com",
+        "Referer": "https://paypams.com"
     })
     
-    # Fixed: Restored the exact menus directory endpoint sub-link route path
     base_url = "https://paypams.com"
 
     try:
@@ -86,38 +86,65 @@ def fetch_and_sync():
             return {
                 "__VIEWSTATE": current_soup.find("input", {"id": "__VIEWSTATE"})["value"] if current_soup.find("input", {"id": "__VIEWSTATE"}) else "",
                 "__VIEWSTATEGENERATOR": current_soup.find("input", {"id": "__VIEWSTATEGENERATOR"})["value"] if current_soup.find("input", {"id": "__VIEWSTATEGENERATOR"}) else "",
-                "__EVENTVALIDATION": current_soup.find("input", {"id": "__EVENTVALIDATION"})["value"] if current_soup.find("input", {"id": "__EVENTVALIDATION"}) else ""
+                "__EVENTVALIDATION": current_soup.find("input", {"id": "__EVENTVALIDATION"})["value"] if current_soup.find("input", {"id": "__EVENTVALIDATION"}) else "",
+                "__ASYNCPOST": "true"
             }
 
-        # Select State -> ME
+        # Step 1: Select State -> ME
+        print("Submitting state handshakes...")
         payload = get_view_states(soup)
-        payload.update({"__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlState", "ctl00$ContentPlaceHolder1$ddlState": "ME"})
+        payload.update({
+            "ctl00$ScriptManager1": "ctl00$ContentPlaceHolder1$UpdatePanel1|ctl00$ContentPlaceHolder1$ddlState",
+            "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlState",
+            "ctl00$ContentPlaceHolder1$ddlState": "ME"
+        })
         res = session.post(base_url, data=payload)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Select District -> Lewiston Public Schools
+        # Step 2: Select District -> Lewiston Public Schools
+        print("Submitting district verification queries...")
         payload = get_view_states(soup)
-        payload.update({"__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlDistrict", "ctl00$ContentPlaceHolder1$ddlState": "ME", "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools"})
+        payload.update({
+            "ctl00$ScriptManager1": "ctl00$ContentPlaceHolder1$UpdatePanel1|ctl00$ContentPlaceHolder1$ddlDistrict",
+            "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlDistrict",
+            "ctl00$ContentPlaceHolder1$ddlState": "ME",
+            "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools"
+        })
         res = session.post(base_url, data=payload)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Select School -> Geiger Elementary School
+        # Step 3: Select School -> Geiger Elementary School
+        print("Submitting targeted campus layout locks...")
         payload = get_view_states(soup)
-        payload.update({"__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlSchool", "ctl00$ContentPlaceHolder1$ddlState": "ME", "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools", "ctl00$ContentPlaceHolder1$ddlSchool": "Geiger Elementary School"})
+        payload.update({
+            "ctl00$ScriptManager1": "ctl00$ContentPlaceHolder1$UpdatePanel1|ctl00$ContentPlaceHolder1$ddlSchool",
+            "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlSchool",
+            "ctl00$ContentPlaceHolder1$ddlState": "ME",
+            "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools",
+            "ctl00$ContentPlaceHolder1$ddlSchool": "Geiger Elementary School"
+        })
         res = session.post(base_url, data=payload)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Select Menu Type -> Lunch (Grabs live current default view)
+        # Step 4: Select Menu Type -> Lunch
+        print("Locking lunch calendar session panel...")
         payload = get_view_states(soup)
-        payload.update({"__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlMenuType", "ctl00$ContentPlaceHolder1$ddlState": "ME", "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools", "ctl00$ContentPlaceHolder1$ddlSchool": "Geiger Elementary School", "ctl00$ContentPlaceHolder1$ddlMenuType": "Lunch"})
+        payload.update({
+            "ctl00$ScriptManager1": "ctl00$ContentPlaceHolder1$UpdatePanel1|ctl00$ContentPlaceHolder1$ddlMenuType",
+            "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlMenuType",
+            "ctl00$ContentPlaceHolder1$ddlState": "ME",
+            "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools",
+            "ctl00$ContentPlaceHolder1$ddlSchool": "Geiger Elementary School",
+            "ctl00$ContentPlaceHolder1$ddlMenuType": "Lunch"
+        })
         res = session.post(base_url, data=payload)
         current_month_soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Parse Current August Frame
+        # Parse Current August Data Block
         all_menu_items = parse_calendar_month(current_month_soup)
 
-        # TRIGGER NEXT MONTH POSTBACK (To safely grab September items)
-        print("Navigating forward to next month view on PayPAMS calendar grid...")
+        # Step 5: Advance Calendar -> Next Month (September)
+        print("Advancing pipeline forward to target next month grid...")
         next_month_btn = current_month_soup.find("a", text=">") or current_month_soup.find("a", string=">")
         if next_month_btn and next_month_btn.get("href"):
             href = next_month_btn["href"]
@@ -125,6 +152,7 @@ def fetch_and_sync():
             
             payload = get_view_states(current_month_soup)
             payload.update({
+                "ctl00$ScriptManager1": f"ctl00$ContentPlaceHolder1$UpdatePanel1|{target}",
                 "__EVENTTARGET": target,
                 "ctl00$ContentPlaceHolder1$ddlState": "ME",
                 "ctl00$ContentPlaceHolder1$ddlDistrict": "Lewiston Public Schools",
@@ -134,31 +162,29 @@ def fetch_and_sync():
             res = session.post(base_url, data=payload)
             next_month_soup = BeautifulSoup(res.text, 'html.parser')
             
-            # Append parsed September items seamlessly
             all_menu_items.extend(parse_calendar_month(next_month_soup))
 
-        # Filter calendar timeline to pull relative data starting from today forward
+        # Filter timeline cleanly starting from today forward
         today_str = datetime.date.today().strftime("%Y-%m-%d")
         upcoming_items = [item for item in all_menu_items if item["date"] >= today_str]
         upcoming_items.sort(key=lambda x: x["date"])
 
-        # Package data layout directly mapping your exact target variable structure
         trmnl_payload = {
             "merge_variables": {
                 "menu_items": upcoming_items
             }
         }
 
-        print(f"Pushing synchronized array containing {len(upcoming_items)} upcoming records straight to TRMNL...")
+        print(f"Pushing payload data array containing {len(upcoming_items)} live records straight to TRMNL...")
         push_response = requests.post(trmnl_url, json=trmnl_payload, headers={"Content-Type": "application/json"})
         
         if push_response.status_code == 200 or push_response.status_code == 202:
-            print("SUCCESS: Full multi-month calendar rotation synchronized smoothly!")
+            print("SUCCESS: Dynamic school menu synchronized cleanly!")
         else:
-            print(f"WARNING: Telemetry rejected with code: {push_response.status_code}")
+            print(f"WARNING: Telemetry rejected with status code: {push_response.status_code}")
 
     except Exception as err:
-        print(f"CRITICAL COMPILER ERROR: {err}")
+        print(f"CRITICAL PARSER ERROR: {err}")
         sys.exit(1)
 
 if __name__ == "__main__":

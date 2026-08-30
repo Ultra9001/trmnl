@@ -1,238 +1,12 @@
-#!/usr/bin/env python3
-import datetime
-import json
 import os
 import re
 import sys
+import datetime
+
 import requests
 from bs4 import BeautifulSoup
 
-============================================================================
-CONFIG
-============================================================================
-PAYPAMS_URL = "https://paypams.com/TN_Menus.aspx"
-SCHOOL_NAME = "Geiger Elementary School"
-SCHOOL_SEARCH = "Geiger"
-MEAL_NAME = "Lunch"
-TRMNL_WEBHOOK_URL = os.environ.get("TRMNL_WEBHOOK_URL")
-TIMEOUT = 30
-HEADERS = {
-"User-Agent": (
-"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-"AppleWebKit/537.36 (KHTML, like Gecko) "
-"Chrome/151.0.0.0 Safari/537.36"
-),
-"Accept": (
-"text/html,application/xhtml+xml,application/xml;"
-"q=0.9,image/avif,image/webp,image/apng,/;q=0.8"
-),
-"Accept-Language": "en-US,en;q=0.9",
-"Referer": PAYPAMS_URL,
-}
-
-============================================================================
-WEBFORMS HELPERS
-============================================================================
-def soup(html):
-return BeautifulSoup(html, "html.parser")
-
-def form_fields(page):
-"""
-Return the current ASP.NET WebForms fields.
-    This is important because PayPAMS changes __VIEWSTATE,
-    __EVENTVALIDATION, etc. after every postback.
-    """
-
-    form = page.find("form")
-
-    if form is None:
-        raise RuntimeError("PayPAMS form was not found.")
-
-    data = {}
-
-    for element in form.find_all(["input", "select", "textarea"]):
-
-        name = element.get("name")
-
-        if not name:
-            continue
-
-        if element.name == "input":
-
-            input_type = (
-                element.get("type") or "text"
-            ).lower()
-
-            if input_type in (
-                "submit",
-                "button",
-                "image",
-                "reset",
-            ):
-                continue
-
-            if input_type in (
-                "checkbox",
-                "radio",
-            ):
-
-                if element.has_attr("checked"):
-                    data[name] = element.get(
-                        "value",
-                        "on",
-                    )
-
-            else:
-
-                data[name] = element.get(
-                    "value",
-                    "",
-                )
-
-        elif element.name == "select":
-
-            selected = element.find(
-                "option",
-                selected=True,
-            )
-
-            if selected is not None:
-
-                data[name] = selected.get(
-                    "value",
-                    "",
-                )
-
-            else:
-
-                data[name] = ""
-
-        elif element.name == "textarea":
-
-            data[name] = element.text
-
-    return data
-
-
-
-def postback(
-session,
-page,
-event_target,
-event_argument="",
-extra=None,
-):
-"""
-Perform an ASP.NET WebForms postback using the CURRENT page state.
-"""
-    data = form_fields(page)
-
-    data["__EVENTTARGET"] = event_target
-    data["__EVENTARGUMENT"] = event_argument
-
-    if extra:
-        data.update(extra)
-
-    response = session.post(
-        PAYPAMS_URL,
-        data=data,
-        timeout=TIMEOUT,
-    )
-
-    response.raise_for_status()
-
-    return response, soup(
-        response.text
-    )
-
-
-
-============================================================================
-SELECT HELPERS
-============================================================================
-def get_select(page, select_id):
-return page.find(
-"select",
-id=select_id,
-)
-
-def dump_select(page, select_id):
-select = get_select(
-page,
-select_id,
-)
-    print()
-    print("SELECT:", select_id)
-
-    if select is None:
-        print("  NOT FOUND")
-        return
-
-    print(
-        "  name:",
-        select.get("name"),
-    )
-
-    for option in select.find_all("option"):
-
-        print(
-            "  ",
-            repr(
-                option.get_text(
-                    " ",
-                    strip=True,
-                )
-            ),
-            "=>",
-            repr(
-                option.get(
-                    "value",
-                    "",
-                )
-            ),
-        )
-
-
-
-def find_option(
-page,
-select_id,
-search_text,
-):
-select = get_select(
-page,
-select_id,
-)
-    if select is None:
-        return None
-
-    search_text = search_text.lower()
-
-    for option in select.find_all("option"):
-
-        text = option.get_text(
-            " ",
-            strip=True,
-        )
-
-        if search_text in text.lower():
-
-            return {
-                "text": text,
-                "value": option.get(
-                    "value",
-                    "",
-                ),
-            }
-
-    return None
-
-
-
-============================================================================
-DATE HELPERS
-============================================================================
-MONTHS = {
+MONTHS_MAP = {
 "january": 1,
 "february": 2,
 "march": 3,
@@ -247,92 +21,300 @@ MONTHS = {
 "december": 12,
 }
 
-def get_calendar_month(page):
-    month_label = page.find(
-        "span",
-        id="h_LBL_MonthYear",
-    )
+BASE_URL = "https://paypams.com/TN_Menus.aspx"
 
-    if month_label:
+SCHOOL_NAME = "Geiger"
 
-        text = month_label.get_text(
-            " ",
-            strip=True,
+MEAL_TYPE_NAME = "Lunch"
+
+def extract_form_fields(soup):
+"""
+Collect the current ASP.NET WebForms form state.
+"""
+
+```
+fields = {}
+
+form = soup.find("form")
+
+if not form:
+    raise RuntimeError("Could not find PayPAMS form.")
+
+for tag in form.find_all(["input", "select", "textarea"]):
+
+    name = tag.get("name")
+
+    if not name:
+        continue
+
+    if tag.name == "select":
+
+        selected = tag.find(
+            "option",
+            selected=True,
         )
 
-        match = re.search(
-            r"([A-Za-z]+)\s+(\d{4})",
-            text,
-        )
+        if selected is None:
+            selected = tag.find("option")
 
-        if match:
-
-            month_name = (
-                match.group(1).lower()
+        if selected is not None:
+            fields[name] = selected.get(
+                "value",
+                selected.get_text(
+                    strip=True
+                ),
             )
 
-            year = int(
-                match.group(2)
-            )
+        else:
+            fields[name] = ""
 
-            if month_name in MONTHS:
+    elif tag.name == "textarea":
 
-                return (
-                    year,
-                    MONTHS[month_name],
+        fields[name] = tag.text
+
+    else:
+
+        input_type = (
+            tag.get("type") or "text"
+        ).lower()
+
+        if input_type in (
+            "checkbox",
+            "radio",
+        ):
+
+            if tag.has_attr("checked"):
+                fields[name] = tag.get(
+                    "value",
+                    "on",
                 )
 
-    today = datetime.date.today()
+        elif input_type in (
+            "submit",
+            "button",
+            "image",
+            "reset",
+        ):
 
+            continue
+
+        else:
+
+            fields[name] = tag.get(
+                "value",
+                "",
+            )
+
+return fields
+```
+
+def parse_do_postback(href):
+"""
+Extract an ASP.NET postback target and argument.
+"""
+
+```
+if not href:
+    return None, None
+
+match = re.search(
+    r"__doPostBack\(\s*['\"]([^'\"]*)['\"]\s*,\s*['\"]([^'\"]*)['\"]\s*\)",
+    href,
+)
+
+if match:
     return (
-        today.year,
-        today.month,
+        match.group(1),
+        match.group(2),
     )
 
+match = re.search(
+    r'WebForm_PostBackOptions\(\s*["\']([^"\']*)["\']\s*,\s*["\']([^"\']*)["\']',
+    href,
+)
 
-
-============================================================================
-MENU PARSER
-============================================================================
-def parse_menu(page):
-    table = page.find(
-        "table",
-        class_="menucalendar",
+if match:
+    return (
+        match.group(1),
+        match.group(2),
     )
 
-    if table is None:
+return None, None
+```
 
-        print()
-        print(
-            "WARNING: table.menucalendar was not found."
+def find_select_value(
+soup,
+select_id,
+option_text_contains,
+):
+"""
+Find a select option by visible text.
+"""
+
+```
+select_el = soup.find(
+    "select",
+    id=select_id,
+)
+
+if not select_el:
+    return None, []
+
+all_options = []
+
+match_value = None
+
+search_text = option_text_contains.lower()
+
+for opt in select_el.find_all("option"):
+
+    text = opt.get_text(
+        " ",
+        strip=True,
+    )
+
+    value = opt.get(
+        "value",
+        "",
+    )
+
+    all_options.append(
+        (
+            text,
+            value,
         )
-
-        return []
-
-    year, month = get_calendar_month(
-        page
     )
 
-    print()
+    if (
+        match_value is None
+        and search_text in text.lower()
+    ):
+
+        match_value = value
+
+return (
+    match_value,
+    all_options,
+)
+```
+
+def post_step(
+session,
+url,
+soup,
+overrides,
+):
+"""
+Submit an ASP.NET WebForms postback.
+
+```
+Every postback gets the hidden state from the
+immediately preceding page.
+"""
+
+payload = extract_form_fields(
+    soup
+)
+
+payload.update(
+    overrides
+)
+
+response = session.post(
+    url,
+    data=payload,
+    timeout=30,
+)
+
+response.raise_for_status()
+
+return (
+    BeautifulSoup(
+        response.text,
+        "html.parser",
+    ),
+    response,
+)
+```
+
+def parse_calendar_month(soup):
+"""
+Parse PayPAMS menucalendar into:
+
+```
+[
+    {
+        "date": "YYYY-MM-DD",
+        "main": "...",
+        "sides": "..."
+    }
+]
+"""
+
+month_year_el = soup.find(
+    "span",
+    id="h_LBL_MonthYear",
+)
+
+today = datetime.date.today()
+
+target_year = today.year
+target_month = today.month
+
+if month_year_el:
+
+    parts = month_year_el.get_text(
+        " ",
+        strip=True,
+    ).split()
+
+    if (
+        len(parts) == 2
+        and parts[0].lower() in MONTHS_MAP
+    ):
+
+        target_month = MONTHS_MAP[
+            parts[0].lower()
+        ]
+
+        try:
+
+            target_year = int(
+                parts[1]
+            )
+
+        except ValueError:
+
+            pass
+
+items = []
+
+table = soup.find(
+    "table",
+    class_="menucalendar",
+)
+
+if not table:
+
     print(
-        "Calendar month:",
-        year,
-        month,
+        "WARNING: menucalendar table was not found."
     )
 
-    results = []
+    return items
 
-    for cell in table.find_all("td"):
+for row in table.find_all("tr"):
 
-        day_element = cell.find(
+    for cell in row.find_all("td"):
+
+        day_span = cell.find(
             "span",
             class_="label_menuday",
         )
 
-        if day_element is None:
+        if not day_span:
             continue
 
-        day_text = day_element.get_text(
+        day_text = day_span.get_text(
             " ",
             strip=True,
         )
@@ -340,581 +322,528 @@ def parse_menu(page):
         if not day_text.isdigit():
             continue
 
-        day = int(
+        day_num = int(
             day_text
         )
 
+        names = []
+
+        for item_el in cell.find_all(
+            "span",
+            class_="uncheckedNC",
+        ):
+
+            name = item_el.get_text(
+                " ",
+                strip=True,
+            )
+
+            name = name.lstrip(
+                "\u2713"
+            ).strip()
+
+            if name:
+                names.append(
+                    name
+                )
+
+        if not names:
+            continue
+
         try:
 
-            menu_date = datetime.date(
-                year,
-                month,
-                day,
+            computed_date = datetime.date(
+                target_year,
+                target_month,
+                day_num,
             )
 
         except ValueError:
 
             continue
 
-        foods = []
-
-        for item in cell.find_all(
-            "span",
-            class_="uncheckedNC",
-        ):
-
-            text = item.get_text(
-                " ",
-                strip=True,
-            )
-
-            text = re.sub(
-                r"^\s*[✓✔]\s*",
-                "",
-                text,
-            ).strip()
-
-            if text:
-                foods.append(
-                    text
-                )
-
-        if not foods:
-            continue
-
-        results.append(
+        items.append(
             {
-                "date": menu_date.isoformat(),
-                "main": foods[0],
+                "date": computed_date.strftime(
+                    "%Y-%m-%d"
+                ),
+                "main": names[0],
                 "sides": ", ".join(
-                    foods[1:]
+                    names[1:]
                 ),
             }
         )
 
-    return results
+return items
+```
 
+def find_next_month_postback(soup):
+"""
+Locate the PayPAMS next-month link and extract
+its ASP.NET postback information.
+"""
 
+```
+next_link = soup.find(
+    "a",
+    id="h_NextMonth",
+)
 
-============================================================================
-NEXT MONTH
-============================================================================
-def find_next_month_postback(page):
-    candidates = []
+if not next_link:
+    return None, None
 
-    for element in page.find_all("a"):
+href = next_link.get(
+    "href",
+    "",
+)
 
-        text = element.get_text(
-            " ",
-            strip=True,
+return parse_do_postback(
+    href
+)
+```
+
+def print_menu_items(items):
+print()
+print("UPCOMING LUNCHES")
+print()
+
+```
+if not items:
+
+    print(
+        "No upcoming menu items were found."
+    )
+
+    return
+
+for item in items:
+
+    print(
+        "{} | {} | {}".format(
+            item["date"],
+            item["main"],
+            item["sides"],
         )
+    )
+```
 
-        element_id = element.get(
-            "id",
-            "",
-        )
+def fetch_and_sync():
 
-        href = element.get(
-            "href",
-            "",
-        )
+```
+trmnl_url = os.environ.get(
+    "TRMNL_WEBHOOK_URL"
+)
 
-        combined = (
-            text
-            + " "
-            + element_id
-            + " "
-            + href
-        ).lower()
+if not trmnl_url:
 
-        if (
-            "next" in combined
-            and (
-                "month" in combined
-                or ">" in text
-            )
-        ):
+    print(
+        "CRITICAL ERROR: "
+        "TRMNL_WEBHOOK_URL environment variable is missing!"
+    )
 
-            candidates.append(
-                element
-            )
+    sys.exit(1)
 
-    for element in candidates:
+session = requests.Session()
 
-        href = element.get(
-            "href",
-            "",
-        )
-
-        match = re.search(
-            r"__doPostBack\s*\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"]([^'\"]*)['\"]\s*\)",
-            href,
-            flags=re.I,
-        )
-
-        if match:
-
-            return (
-                match.group(1),
-                match.group(2),
-            )
-
-    return None
-
-
-
-============================================================================
-TRMNL
-============================================================================
-def send_to_trmnl(items):
-    if not TRMNL_WEBHOOK_URL:
-
-        raise RuntimeError(
-            "TRMNL_WEBHOOK_URL environment variable "
-            "is not configured."
-        )
-
-    payload = {
-        "merge_variables": {
-            "menu_items": items,
-        }
+session.headers.update(
+    {
+        "User-Agent": (
+            "Mozilla/5.0 "
+            "(Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 "
+            "(KHTML, like Gecko) "
+            "Chrome/151.0.0.0 Safari/537.36"
+        ),
+        "Accept": (
+            "text/html,application/xhtml+xml,"
+            "application/xml;q=0.9,*/*;q=0.8"
+        ),
+        "Accept-Language": (
+            "en-US,en;q=0.9"
+        ),
+        "Origin": "https://paypams.com",
+        "Referer": BASE_URL,
     }
+)
 
-    print()
-    print(
-        "Sending payload to TRMNL..."
-    )
+try:
 
     print(
-        json.dumps(
-            payload,
-            indent=2,
-            ensure_ascii=False,
+        "Loading {} ...".format(
+            BASE_URL
         )
-    )
-
-    response = requests.post(
-        TRMNL_WEBHOOK_URL,
-        json=payload,
-        headers={
-            "Content-Type": "application/json",
-        },
-        timeout=TIMEOUT,
-    )
-
-    print(
-        "TRMNL status:",
-        response.status_code,
-    )
-
-    if response.text:
-        print(
-            "TRMNL response:",
-            response.text[:1000],
-        )
-
-    response.raise_for_status()
-
-
-
-============================================================================
-MAIN
-============================================================================
-def main():
-    print()
-    print(
-        "=" * 72
-    )
-    print(
-        "LEWISTON PUBLIC SCHOOLS"
-    )
-    print(
-        "GEIGER ELEMENTARY SCHOOL"
-    )
-    print(
-        "LUNCH MENU FETCH"
-    )
-    print(
-        "=" * 72
-    )
-
-    if not TRMNL_WEBHOOK_URL:
-
-        print()
-        print(
-            "ERROR: TRMNL_WEBHOOK_URL is not set."
-        )
-
-        print(
-            "The GitHub Action needs a repository secret "
-            "named TRMNL_WEBHOOK_URL."
-        )
-
-        return 1
-
-    session = requests.Session()
-
-    session.headers.update(
-        HEADERS
-    )
-
-    # ------------------------------------------------------------------------
-    # STEP 1
-    # ------------------------------------------------------------------------
-
-    print()
-    print(
-        "STEP 1: Initial PayPAMS GET"
     )
 
     response = session.get(
-        PAYPAMS_URL,
-        timeout=TIMEOUT,
+        BASE_URL,
+        timeout=30,
     )
 
     response.raise_for_status()
 
-    page = soup(
-        response.text
+    soup = BeautifulSoup(
+        response.text,
+        "html.parser",
     )
 
     print(
-        "Status:",
-        response.status_code,
+        "Response status: {}".format(
+            response.status_code
+        )
     )
 
-    # ------------------------------------------------------------------------
-    # STEP 2
-    # ------------------------------------------------------------------------
+    print(
+        "Final URL: {}".format(
+            response.url
+        )
+    )
+
+    title_el = soup.find(
+        "title"
+    )
+
+    if title_el:
+
+        print(
+            "Page title: {}".format(
+                title_el.get_text(
+                    strip=True
+                )
+            )
+        )
+
+    all_selects = soup.find_all(
+        "select"
+    )
+
+    print(
+        "Found {} select elements.".format(
+            len(all_selects)
+        )
+    )
+
+    for select in all_selects:
+
+        print(
+            "  id={!r} name={!r} options={}".format(
+                select.get("id"),
+                select.get("name"),
+                len(
+                    select.find_all(
+                        "option"
+                    )
+                ),
+            )
+        )
+
+    school_value, school_options = find_select_value(
+        soup,
+        "h_DD_Schools",
+        SCHOOL_NAME,
+    )
 
     print()
     print(
-        "STEP 2: Inspecting school selector"
+        "Schools found:"
     )
 
-    dump_select(
-        page,
-        "h_DD_Schools",
-    )
+    for text, value in school_options:
 
-    school = find_option(
-        page,
-        "h_DD_Schools",
-        SCHOOL_SEARCH,
-    )
+        print(
+            "  {!r} -> {!r}".format(
+                text,
+                value,
+            )
+        )
 
-    if school is None:
+    if not school_value:
 
         print()
         print(
-            "ERROR: Geiger was not found."
+            "CRITICAL ERROR:"
         )
 
         print(
-            "The PayPAMS page returned no matching "
-            "school option."
+            "No school containing {!r} "
+            "was found.".format(
+                SCHOOL_NAME
+            )
         )
 
-        return 1
+        print(
+            "PayPAMS may have returned a "
+            "different district."
+        )
 
-    print(
-        "School:",
-        school["text"],
-    )
-
-    print(
-        "School value:",
-        school["value"],
-    )
-
-    # ------------------------------------------------------------------------
-    # STEP 3
-    # ------------------------------------------------------------------------
+        sys.exit(1)
 
     print()
     print(
-        "STEP 3: School postback"
+        "Selecting school:"
     )
 
-    response, page = postback(
+    print(
+        "  {} -> {}".format(
+            SCHOOL_NAME,
+            school_value,
+        )
+    )
+
+    soup, response = post_step(
         session,
-        page,
-        "h_DD_Schools",
-        "",
+        BASE_URL,
+        soup,
         {
-            "h_DD_Schools": school["value"],
+            "__EVENTTARGET": "h_DD_Schools",
+            "__EVENTARGUMENT": "",
+            "h_DD_Schools": school_value,
         },
     )
 
     print(
-        "Status:",
-        response.status_code,
+        "School postback status: {}".format(
+            response.status_code
+        )
     )
 
-    # ------------------------------------------------------------------------
-    # STEP 4
-    # ------------------------------------------------------------------------
-
-    print()
-    print(
-        "STEP 4: Inspecting meal selector"
-    )
-
-    dump_select(
-        page,
+    meal_value, meal_options = find_select_value(
+        soup,
         "h_DD_MealTypes",
+        MEAL_TYPE_NAME,
     )
 
-    meal = find_option(
-        page,
-        "h_DD_MealTypes",
-        MEAL_NAME,
-    )
-
-    if meal is None:
+    if not meal_value:
 
         print()
         print(
-            "ERROR: Lunch was not found."
+            "Meal types found:"
         )
 
-        return 1
+        for text, value in meal_options:
 
-    print(
-        "Meal:",
-        meal["text"],
-    )
+            print(
+                "  {!r} -> {!r}".format(
+                    text,
+                    value,
+                )
+            )
 
-    print(
-        "Meal value:",
-        meal["value"],
-    )
+        print()
+        print(
+            "CRITICAL ERROR:"
+        )
 
-    # ------------------------------------------------------------------------
-    # STEP 5
-    # ------------------------------------------------------------------------
+        print(
+            "No meal containing {!r} was found.".format(
+                MEAL_TYPE_NAME
+            )
+        )
+
+        sys.exit(1)
 
     print()
     print(
-        "STEP 5: Lunch postback"
+        "Selecting meal:"
     )
 
-    response, page = postback(
+    print(
+        "  {} -> {}".format(
+            MEAL_TYPE_NAME,
+            meal_value,
+        )
+    )
+
+    current_month_soup, response = post_step(
         session,
-        page,
-        "h_DD_MealTypes",
-        "",
+        BASE_URL,
+        soup,
         {
-            "h_DD_Schools": school["value"],
-            "h_DD_MealTypes": meal["value"],
+            "__EVENTTARGET": "h_DD_MealTypes",
+            "__EVENTARGUMENT": "",
+            "h_DD_Schools": school_value,
+            "h_DD_MealTypes": meal_value,
         },
     )
 
     print(
-        "Status:",
-        response.status_code,
+        "Lunch postback status: {}".format(
+            response.status_code
+        )
     )
 
-    # ------------------------------------------------------------------------
-    # STEP 6
-    # ------------------------------------------------------------------------
-
-    print()
-    print(
-        "STEP 6: Parsing menu calendar"
-    )
-
-    items = parse_menu(
-        page
+    all_menu_items = parse_calendar_month(
+        current_month_soup
     )
 
     print(
-        "Current month items:",
-        len(items),
+        "Parsed {} items from current month.".format(
+            len(all_menu_items)
+        )
     )
 
-    # ------------------------------------------------------------------------
-    # STEP 7
-    # ------------------------------------------------------------------------
-
-    next_postback = find_next_month_postback(
-        page
+    event_target, event_argument = (
+        find_next_month_postback(
+            current_month_soup
+        )
     )
 
-    if next_postback:
+    if event_target:
 
-        print()
         print(
-            "STEP 7: Fetching next month"
+            "Fetching next month..."
         )
 
-        response, next_page = postback(
+        next_month_soup, response = post_step(
             session,
-            page,
-            next_postback[0],
-            next_postback[1],
+            BASE_URL,
+            current_month_soup,
             {
-                "h_DD_Schools": school["value"],
-                "h_DD_MealTypes": meal["value"],
+                "__EVENTTARGET": event_target,
+                "__EVENTARGUMENT": (
+                    event_argument or ""
+                ),
+                "h_DD_Schools": school_value,
+                "h_DD_MealTypes": meal_value,
             },
         )
 
-        print(
-            "Status:",
-            response.status_code,
-        )
-
-        next_items = parse_menu(
-            next_page
+        next_items = parse_calendar_month(
+            next_month_soup
         )
 
         print(
-            "Next month items:",
-            len(next_items),
+            "Parsed {} items from next month.".format(
+                len(next_items)
+            )
         )
 
-        known_dates = {
+        existing_dates = {
             item["date"]
-            for item in items
+            for item in all_menu_items
         }
 
         for item in next_items:
 
-            if item["date"] not in known_dates:
+            if item["date"] not in existing_dates:
 
-                items.append(
+                all_menu_items.append(
                     item
                 )
 
     else:
 
-        print()
         print(
-            "No next-month postback found."
+            "WARNING: Could not find next-month postback."
         )
 
-    # ------------------------------------------------------------------------
-    # STEP 8
-    # ------------------------------------------------------------------------
-
-    print()
-    print(
-        "STEP 8: Filtering upcoming lunches"
+    today_str = datetime.date.today().strftime(
+        "%Y-%m-%d"
     )
 
-    today = datetime.date.today()
+    upcoming_items = [
+        item
+        for item in all_menu_items
+        if item["date"] >= today_str
+    ]
 
-    upcoming = []
-
-    for item in items:
-
-        try:
-
-            item_date = datetime.date.fromisoformat(
-                item["date"]
-            )
-
-        except Exception:
-
-            continue
-
-        if item_date >= today:
-
-            upcoming.append(
-                item
-            )
-
-    upcoming.sort(
+    upcoming_items.sort(
         key=lambda item: item["date"]
     )
 
-    # Keep one record per date.
-    deduped = []
+    print_menu_items(
+        upcoming_items
+    )
 
-    seen = set()
-
-    for item in upcoming:
-
-        if item["date"] in seen:
-            continue
-
-        seen.add(
-            item["date"]
-        )
-
-        deduped.append(
-            item
-        )
-
-    upcoming = deduped
-
-    # ------------------------------------------------------------------------
-    # STEP 9
-    # ------------------------------------------------------------------------
+    trmnl_payload = {
+        "merge_variables": {
+            "menu_items": upcoming_items,
+        }
+    }
 
     print()
     print(
-        "=" * 72
-    )
-    print(
-        "UPCOMING LUNCHES"
-    )
-    print(
-        "=" * 72
+        "Pushing {} upcoming menu items to TRMNL...".format(
+            len(upcoming_items)
+        )
     )
 
-    if not upcoming:
+    push_response = requests.post(
+        trmnl_url,
+        json=trmnl_payload,
+        headers={
+            "Content-Type": "application/json"
+        },
+        timeout=30,
+    )
+
+    print(
+        "TRMNL status: {}".format(
+            push_response.status_code
+        )
+    )
+
+    if push_response.text:
 
         print(
-            "NO UPCOMING MENU ITEMS FOUND."
+            "TRMNL response:"
         )
 
-    else:
+        print(
+            push_response.text[:1000]
+        )
 
-        for item in upcoming:
+    if push_response.status_code not in (
+        200,
+        201,
+        202,
+    ):
 
-            print(
-                item["date"],
-                "|",
-                item["main"],
-                "|",
-                item["sides"],
-            )
+        print(
+            "ERROR: TRMNL rejected the webhook."
+        )
 
-    # ------------------------------------------------------------------------
-    # STEP 10
-    # ------------------------------------------------------------------------
-
-    print()
-    print(
-        "STEP 10: Sending menu to TRMNL"
-    )
-
-    send_to_trmnl(
-        upcoming
-    )
+        sys.exit(1)
 
     print()
     print(
-        "=" * 72
-    )
-    print(
-        "SUCCESS"
-    )
-    print(
-        "=" * 72
+        "SUCCESS: menu synchronized."
     )
 
     print(
-        "Menu items sent:",
-        len(upcoming),
+        "Menu items sent: {}".format(
+            len(upcoming_items)
+        )
     )
 
-    return 0
+except requests.RequestException as err:
 
+    print()
+    print(
+        "HTTP ERROR:"
+    )
 
+    print(
+        str(err)
+    )
 
-if name == "main":
-sys.exit(
-main()
-)
+    sys.exit(1)
+
+except Exception as err:
+
+    print()
+    print(
+        "CRITICAL PARSER ERROR:"
+    )
+
+    print(
+        "{}: {}".format(
+            type(err).__name__,
+            err,
+        )
+    )
+
+    sys.exit(1)
+```
+
+if **name** == "**main**":
+fetch_and_sync()

@@ -1,41 +1,34 @@
 #!/usr/bin/env python3
 
-"""
-PayPAMS
-Maine -> Lewiston Public Schools -> Geiger Elementary School -> Lunch
-
-Requirements:
-    pip install requests beautifulsoup4
-
-Run:
-    python fetch_menu.py
-"""
-
 from __future__ import annotations
 
 import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 import requests
 from bs4 import BeautifulSoup
 
 
 # ============================================================================
-# CONFIGURATION
+# CONFIG
 # ============================================================================
 
 URL = "https://paypams.com/TN_Menus.aspx"
 
-STATE_CODE = "ME"
-DISTRICT_NAME = "Lewiston Public Schools"
-SCHOOL_NAME = "Geiger Elementary School"
-MEAL_NAME = "Lunch"
+STATE = "ME"
 
-# This was discovered from the actual Lewiston district link.
+DISTRICT_NAME = "Lewiston Public Schools"
 DISTRICT_EVENTTARGET = "_ctl7"
+
+SCHOOL_NAME = "Geiger Elementary School"
+SCHOOL_VALUE = "112"
+
+MEAL_NAME = "Lunch"
+MEAL_VALUE = "47"
+MEAL_EVENTTARGET = "h_DD_MealTypes"
 
 OUT_DIR = Path("paypams_me_debug")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -56,7 +49,7 @@ HEADERS = {
 
 
 # ============================================================================
-# GENERAL HELPERS
+# HELPERS
 # ============================================================================
 
 def save_text(filename: str, text: str) -> Path:
@@ -66,7 +59,7 @@ def save_text(filename: str, text: str) -> Path:
     return path
 
 
-def get_soup(html: str) -> BeautifulSoup:
+def soup_for(html: str) -> BeautifulSoup:
     return BeautifulSoup(html, "html.parser")
 
 
@@ -79,10 +72,9 @@ def get_form(soup: BeautifulSoup):
     return form
 
 
-def get_hidden_fields(soup: BeautifulSoup) -> Dict[str, str]:
-    """
-    Collect all hidden inputs from the PayPAMS ASP.NET form.
-    """
+def get_hidden_fields(
+    soup: BeautifulSoup,
+) -> Dict[str, str]:
 
     form = get_form(soup)
 
@@ -99,43 +91,28 @@ def get_hidden_fields(soup: BeautifulSoup) -> Dict[str, str]:
 
 
 def print_response(
-    label: str,
+    name: str,
     response: requests.Response,
 ) -> None:
 
     print()
     print("=" * 80)
-    print(label)
+    print(name)
     print("=" * 80)
 
     print("Status :", response.status_code)
     print("URL    :", response.url)
     print("Length :", len(response.content))
-    print()
 
-
-# ============================================================================
-# SELECT HELPERS
-# ============================================================================
 
 def get_select(
     soup: BeautifulSoup,
     select_id: str,
 ):
-    select = soup.find(
+    return soup.find(
         "select",
         id=select_id,
     )
-
-    if select is None:
-
-        # Try by name as fallback.
-        select = soup.find(
-            "select",
-            attrs={"name": select_id},
-        )
-
-    return select
 
 
 def print_select(
@@ -145,7 +122,7 @@ def print_select(
 
     print()
     print("=" * 80)
-    print(f"SELECT: {select_id}")
+    print(f"SELECT {select_id}")
     print("=" * 80)
 
     select = get_select(
@@ -156,19 +133,13 @@ def print_select(
     if select is None:
 
         print(
-            f"ERROR: <select id={select_id!r}> "
-            "was not found."
+            "NOT FOUND"
         )
 
         return
 
     print(
-        "id      :",
-        select.get("id"),
-    )
-
-    print(
-        "name    :",
+        "name:",
         select.get("name"),
     )
 
@@ -177,15 +148,10 @@ def print_select(
         select.get("onchange"),
     )
 
-    options = select.find_all("option")
+    print()
 
-    print(
-        "options :",
-        len(options),
-    )
-
-    for i, option in enumerate(
-        options,
+    for index, option in enumerate(
+        select.find_all("option"),
         1,
     ):
 
@@ -200,824 +166,148 @@ def print_select(
         )
 
         selected = (
-            " SELECTED"
+            " [SELECTED]"
             if option.has_attr("selected")
             else ""
         )
 
         print(
-            f"  [{i:02d}] "
+            f"{index:02d}. "
             f"value={value!r} "
             f"text={text!r}"
             f"{selected}"
         )
 
 
-def find_option_by_text(
+def print_menu_text(
     soup: BeautifulSoup,
-    select_id: str,
-    wanted_text: str,
-) -> Optional[Tuple[str, str]]:
+) -> None:
 
-    select = get_select(
-        soup,
-        select_id,
+    print()
+    print("=" * 80)
+    print("MENU PAGE TEXT")
+    print("=" * 80)
+
+    text = soup.get_text(
+        "\n",
+        strip=True,
     )
 
-    if select is None:
-        return None
+    for line in text.splitlines():
 
-    wanted_normalized = re.sub(
-        r"\s+",
-        " ",
-        wanted_text.strip().lower(),
-    )
-
-    options = select.find_all("option")
-
-    # Exact normalized match first.
-    for option in options:
-
-        value = option.get(
-            "value",
-            "",
-        )
-
-        text = re.sub(
+        line = re.sub(
             r"\s+",
             " ",
-            option.get_text(
-                " ",
-                strip=True,
-            ).lower(),
+            line.strip(),
         )
 
-        if text == wanted_normalized:
-            return value, option.get_text(
-                " ",
-                strip=True,
-            )
+        if not line:
+            continue
 
-    # Then substring match.
-    for option in options:
-
-        value = option.get(
-            "value",
-            "",
-        )
-
-        text_original = option.get_text(
-            " ",
-            strip=True,
-        )
-
-        text = re.sub(
-            r"\s+",
-            " ",
-            text_original.lower(),
-        )
-
-        if wanted_normalized in text:
-            return value, text_original
-
-    return None
+        print(line)
 
 
 # ============================================================================
-# POSTBACK HELPERS
+# POSTBACK PARSING
 # ============================================================================
 
 def extract_postback_target(
-    onchange: Optional[str],
+    javascript: Optional[str],
 ) -> Optional[str]:
 
-    if not onchange:
+    if not javascript:
         return None
 
-    # Common ASP.NET pattern:
+    # Handles:
     #
-    # __doPostBack('h_DD_Schools','')
+    # __doPostBack('h_DD_MealTypes','')
     #
-    # or:
+    # and:
     #
-    # __doPostBack("h_DD_Schools","")
+    # __doPostBack(\'h_DD_MealTypes\',\'\')
     #
-    match = re.search(
-        r"__doPostBack\s*\(\s*['\"]([^'\"]+)['\"]",
-        onchange,
-        flags=re.I,
-    )
 
-    if match:
-        return match.group(1)
+    patterns = [
+        r"__doPostBack\s*\(\s*['\\\"]+([^'\\\"]+)",
+        r"__doPostBack\s*\(\s*\\\\?['\\\"]([^'\\\"]+)",
+        r"PostBackOptions\s*\(\s*['\\\"]+([^'\\\"]+)",
+        r"PostBackOptions\s*\(\s*\\\\?['\\\"]([^'\\\"]+)",
+    ]
 
-    # Sometimes WebForm_DoPostBackWithOptions is used.
-    match = re.search(
-        r'PostBackOptions\s*\(\s*["\']([^"\']+)["\']',
-        onchange,
-        flags=re.I,
-    )
+    for pattern in patterns:
 
-    if match:
-        return match.group(1)
+        match = re.search(
+            pattern,
+            javascript,
+            flags=re.I,
+        )
+
+        if match:
+            return match.group(1)
 
     return None
 
 
-def print_control_details(
+# ============================================================================
+# MENU JSON / DATA DISCOVERY
+# ============================================================================
+
+def try_parse_json(
+    raw: str,
+) -> Optional[object]:
+
+    raw = raw.strip()
+
+    if not raw:
+        return None
+
+    # Straight JSON.
+    try:
+        return json.loads(raw)
+    except Exception:
+        pass
+
+    # Try extracting an array.
+    array_match = re.search(
+        r"(\[\s*\{.*?\}\s*\])",
+        raw,
+        flags=re.S,
+    )
+
+    if array_match:
+
+        try:
+            return json.loads(
+                array_match.group(1)
+            )
+        except Exception:
+            pass
+
+    return None
+
+
+def inspect_menu_scripts(
     soup: BeautifulSoup,
 ) -> None:
 
     print()
     print("=" * 80)
-    print("SCHOOL / MEAL CONTROL DETAILS")
+    print("MENU-RELATED SCRIPTS")
     print("=" * 80)
 
-    for select_id in [
-        "h_DD_Schools",
-        "h_DD_MealTypes",
-    ]:
+    found = 0
 
-        select = get_select(
-            soup,
-            select_id,
-        )
-
-        if select is None:
-            continue
-
-        print()
-        print(select_id)
-
-        print(
-            "  name     :",
-            select.get("name"),
-        )
-
-        print(
-            "  onchange :",
-            select.get("onchange"),
-        )
-
-        print(
-            "  postback :",
-            extract_postback_target(
-                select.get("onchange")
-            ),
-        )
-
-
-# ============================================================================
-# STEP 1
-# ============================================================================
-
-def initial_get(
-    session: requests.Session,
-) -> Tuple[requests.Response, BeautifulSoup]:
-
-    print()
-    print("=" * 80)
-    print("STEP 1 - INITIAL GET")
-    print("=" * 80)
-
-    response = session.get(
-        URL,
-        timeout=30,
-        allow_redirects=True,
-    )
-
-    response.raise_for_status()
-
-    print_response(
-        "INITIAL RESPONSE",
-        response,
-    )
-
-    save_text(
-        "01_initial.html",
-        response.text,
-    )
-
-    return response, get_soup(
-        response.text
-    )
-
-
-# ============================================================================
-# STEP 2
-# ============================================================================
-
-def select_maine(
-    session: requests.Session,
-    soup: BeautifulSoup,
-) -> Tuple[requests.Response, BeautifulSoup]:
-
-    print()
-    print("=" * 80)
-    print("STEP 2 - SELECT MAINE")
-    print("=" * 80)
-
-    data = get_hidden_fields(
-        soup
-    )
-
-    data[
-        "h_UC_State:h_DD_State"
-    ] = STATE_CODE
-
-    data[
-        "h_BTN_Submit"
-    ] = "Submit"
-
-    data[
-        "__EVENTTARGET"
-    ] = ""
-
-    data[
-        "__EVENTARGUMENT"
-    ] = ""
-
-    print(
-        "State:",
-        STATE_CODE,
-    )
-
-    response = session.post(
-        URL,
-        data=data,
-        timeout=30,
-        allow_redirects=True,
-    )
-
-    response.raise_for_status()
-
-    print_response(
-        "MAINE RESPONSE",
-        response,
-    )
-
-    save_text(
-        "02_after_ME_post.html",
-        response.text,
-    )
-
-    return response, get_soup(
-        response.text
-    )
-
-
-# ============================================================================
-# STEP 3
-# ============================================================================
-
-def select_lewiston(
-    session: requests.Session,
-    soup: BeautifulSoup,
-) -> Tuple[requests.Response, BeautifulSoup]:
-
-    print()
-    print("=" * 80)
-    print("STEP 3 - SELECT LEWISTON PUBLIC SCHOOLS")
-    print("=" * 80)
-
-    # Find the actual Lewiston link.
-    link = None
-
-    for candidate in soup.find_all("a"):
-
-        text = candidate.get_text(
-            " ",
-            strip=True,
-        )
-
-        if (
-            DISTRICT_NAME.lower()
-            in text.lower()
-        ):
-
-            link = candidate
-            break
-
-    if link is None:
-
-        raise RuntimeError(
-            "Could not find Lewiston Public Schools link."
-        )
-
-    href = link.get(
-        "href",
-        "",
-    )
-
-    print(
-        "Found district link:"
-    )
-
-    print(
-        link
-    )
-
-    print(
-        "href:",
-        href,
-    )
-
-    # Reproduce:
-    #
-    # WebForm_DoPostBackWithOptions(
-    #     new WebForm_PostBackOptions(
-    #         "_ctl7", ...
-    #     )
-    #
-    data = get_hidden_fields(
-        soup
-    )
-
-    data[
-        "__EVENTTARGET"
-    ] = DISTRICT_EVENTTARGET
-
-    data[
-        "__EVENTARGUMENT"
-    ] = ""
-
-    print()
-    print(
-        "__EVENTTARGET =",
-        DISTRICT_EVENTTARGET,
-    )
-
-    response = session.post(
-        URL,
-        data=data,
-        timeout=30,
-        allow_redirects=True,
-    )
-
-    response.raise_for_status()
-
-    print_response(
-        "LEWISTON RESPONSE",
-        response,
-    )
-
-    save_text(
-        "03_after_Lewiston_post.html",
-        response.text,
-    )
-
-    soup3 = get_soup(
-        response.text
-    )
-
-    print_control_details(
-        soup3
-    )
-
-    print_select(
-        soup3,
-        "h_DD_Schools",
-    )
-
-    print_select(
-        soup3,
-        "h_DD_MealTypes",
-    )
-
-    return response, soup3
-
-
-# ============================================================================
-# STEP 4
-# ============================================================================
-
-def select_geiger(
-    session: requests.Session,
-    soup: BeautifulSoup,
-) -> Tuple[requests.Response, BeautifulSoup]:
-
-    print()
-    print("=" * 80)
-    print("STEP 4 - SELECT GEIGER ELEMENTARY SCHOOL")
-    print("=" * 80)
-
-    select = get_select(
-        soup,
-        "h_DD_Schools",
-    )
-
-    if select is None:
-
-        raise RuntimeError(
-            "h_DD_Schools was not found."
-        )
-
-    school_result = find_option_by_text(
-        soup,
-        "h_DD_Schools",
-        SCHOOL_NAME,
-    )
-
-    if school_result is None:
-
-        print_select(
-            soup,
-            "h_DD_Schools",
-        )
-
-        raise RuntimeError(
-            f"Could not find school "
-            f"{SCHOOL_NAME!r}."
-        )
-
-    school_value, school_text = school_result
-
-    print(
-        "School text :",
-        school_text,
-    )
-
-    print(
-        "School value:",
-        school_value,
-    )
-
-    school_name = select.get(
-        "name",
-    )
-
-    if not school_name:
-
-        raise RuntimeError(
-            "h_DD_Schools has no name attribute."
-        )
-
-    onchange = select.get(
-        "onchange",
-    )
-
-    school_postback_target = (
-        extract_postback_target(
-            onchange
-        )
-    )
-
-    print(
-        "School field:",
-        school_name,
-    )
-
-    print(
-        "School onchange:",
-        onchange,
-    )
-
-    print(
-        "Detected school postback target:",
-        school_postback_target,
-    )
-
-    # Start with all hidden fields from the Lewiston page.
-    data = get_hidden_fields(
-        soup
-    )
-
-    # ASP.NET select field.
-    data[
-        school_name
-    ] = school_value
-
-    data[
-        "__EVENTARGUMENT"
-    ] = ""
-
-    # If the dropdown has an onchange __doPostBack,
-    # use exactly that target.
-    if school_postback_target:
-
-        data[
-            "__EVENTTARGET"
-        ] = school_postback_target
-
-        print()
-        print(
-            "Submitting school selection "
-            "as ASP.NET postback:"
-        )
-
-        print(
-            "  EVENTTARGET =",
-            school_postback_target,
-        )
-
-    else:
-
-        # Some ASP.NET pages process the selected value
-        # without an explicit onchange target.
-        data[
-            "__EVENTTARGET"
-        ] = ""
-
-        print()
-        print(
-            "No school onchange postback was detected."
-        )
-
-    response = session.post(
-        URL,
-        data=data,
-        timeout=30,
-        allow_redirects=True,
-    )
-
-    response.raise_for_status()
-
-    print_response(
-        "GEIGER RESPONSE",
-        response,
-    )
-
-    save_text(
-        "04_after_Geiger_post.html",
-        response.text,
-    )
-
-    soup4 = get_soup(
-        response.text
-    )
-
-    print_control_details(
-        soup4
-    )
-
-    print_select(
-        soup4,
-        "h_DD_Schools",
-    )
-
-    print_select(
-        soup4,
-        "h_DD_MealTypes",
-    )
-
-    return response, soup4
-
-
-# ============================================================================
-# STEP 5
-# ============================================================================
-
-def select_lunch(
-    session: requests.Session,
-    soup: BeautifulSoup,
-) -> Tuple[requests.Response, BeautifulSoup]:
-
-    print()
-    print("=" * 80)
-    print("STEP 5 - SELECT LUNCH")
-    print("=" * 80)
-
-    meal_select = get_select(
-        soup,
-        "h_DD_MealTypes",
-    )
-
-    if meal_select is None:
-
-        raise RuntimeError(
-            "h_DD_MealTypes was not found."
-        )
-
-    meal_result = find_option_by_text(
-        soup,
-        "h_DD_MealTypes",
-        MEAL_NAME,
-    )
-
-    if meal_result is None:
-
-        print_select(
-            soup,
-            "h_DD_MealTypes",
-        )
-
-        raise RuntimeError(
-            f"Could not find meal "
-            f"{MEAL_NAME!r}."
-        )
-
-    meal_value, meal_text = meal_result
-
-    print(
-        "Meal text :",
-        meal_text,
-    )
-
-    print(
-        "Meal value:",
-        meal_value,
-    )
-
-    meal_name = meal_select.get(
-        "name",
-    )
-
-    if not meal_name:
-
-        raise RuntimeError(
-            "h_DD_MealTypes has no name attribute."
-        )
-
-    onchange = meal_select.get(
-        "onchange",
-    )
-
-    meal_postback_target = (
-        extract_postback_target(
-            onchange
-        )
-    )
-
-    print(
-        "Meal field:",
-        meal_name,
-    )
-
-    print(
-        "Meal onchange:",
-        onchange,
-    )
-
-    print(
-        "Detected meal postback target:",
-        meal_postback_target,
-    )
-
-    data = get_hidden_fields(
-        soup
-    )
-
-    # Preserve current school selection too.
-    school_select = get_select(
-        soup,
-        "h_DD_Schools",
-    )
-
-    if school_select is not None:
-
-        current_school = school_select.find(
-            "option",
-            selected=True,
-        )
-
-        # If there is no explicit selected attribute,
-        # use the first non-placeholder option.
-        if current_school is None:
-
-            options = school_select.find_all(
-                "option"
-            )
-
-            current_school = next(
-                (
-                    option
-                    for option in options
-                    if option.get("value")
-                    and option.get_text(
-                        " ",
-                        strip=True,
-                    ).lower()
-                    != "select"
-                ),
-                None,
-            )
-
-        if current_school is not None:
-
-            data[
-                school_select.get(
-                    "name"
-                )
-            ] = current_school.get(
-                "value",
-                "",
-            )
-
-            print(
-                "Preserving school value:",
-                current_school.get(
-                    "value",
-                    "",
-                ),
-            )
-
-    # Add Lunch.
-    data[
-        meal_name
-    ] = meal_value
-
-    data[
-        "__EVENTARGUMENT"
-    ] = ""
-
-    if meal_postback_target:
-
-        data[
-            "__EVENTTARGET"
-        ] = meal_postback_target
-
-        print()
-        print(
-            "Submitting meal selection "
-            "as ASP.NET postback."
-        )
-
-        print(
-            "  EVENTTARGET =",
-            meal_postback_target,
-        )
-
-    else:
-
-        data[
-            "__EVENTTARGET"
-        ] = ""
-
-        print()
-        print(
-            "No meal onchange postback detected."
-        )
-
-    response = session.post(
-        URL,
-        data=data,
-        timeout=30,
-        allow_redirects=True,
-    )
-
-    response.raise_for_status()
-
-    print_response(
-        "LUNCH RESPONSE",
-        response,
-    )
-
-    save_text(
-        "05_after_Lunch_post.html",
-        response.text,
-    )
-
-    soup5 = get_soup(
-        response.text
-    )
-
-    return response, soup5
-
-
-# ============================================================================
-# MENU DATA EXTRACTION
-# ============================================================================
-
-def search_for_menu_data(
-    soup: BeautifulSoup,
-    html: str,
-) -> None:
-
-    print()
-    print("=" * 80)
-    print("MENU DATA SEARCH")
-    print("=" * 80)
-
-    signatures = [
+    terms = [
         "h_SCRIPT_menudata",
         "DistrictID",
         "ItemCode",
         "ServingTypeID",
         "DataCalDay",
-        "CaloriesStr",
         "ItemName",
-        "ServingSize",
-        "MenuName",
-        "Breakfast",
-        "Lunch",
+        "CaloriesStr",
         "Geiger",
+        "Lunch",
     ]
-
-    for signature in signatures:
-
-        count = html.lower().count(
-            signature.lower()
-        )
-
-        print(
-            f"{signature:20s}: {count}"
-        )
-
-    # ----------------------------------------------------------------------
-    # Look for script tags with menu-related content.
-    # ----------------------------------------------------------------------
-
-    found = 0
 
     for index, script in enumerate(
         soup.find_all("script")
@@ -1033,204 +323,559 @@ def search_for_menu_data(
 
         lower = text.lower()
 
-        if any(
-            term in lower
-            for term in [
-                "districtid",
-                "itemcode",
-                "servingtypeid",
-                "datacalday",
-                "itemname",
-                "menuname",
-            ]
-        ):
+        matching_terms = [
+            term
+            for term in terms
+            if term.lower() in lower
+        ]
 
-            found += 1
+        if not matching_terms:
+            continue
 
-            filename = (
-                f"menu_related_script_{found}.txt"
-            )
+        found += 1
 
-            save_text(
-                filename,
-                text,
-            )
+        filename = (
+            f"menu_script_{found}.txt"
+        )
 
-            print()
-            print(
-                f"Menu-related script #{index}"
-            )
+        save_text(
+            filename,
+            text,
+        )
 
-            print(
-                "Saved:",
-                filename,
-            )
-
-    print()
-    print(
-        "Menu-related scripts:",
-        found,
-    )
-
-
-def extract_menu_json(
-    soup: BeautifulSoup,
-) -> Optional[list]:
-
-    print()
-    print("=" * 80)
-    print("DIRECT MENU JSON EXTRACTION")
-    print("=" * 80)
-
-    # First try the exact script ID seen in the site's JS.
-    script = soup.find(
-        "script",
-        id="h_SCRIPT_menudata",
-    )
-
-    if script is None:
+        print()
+        print(
+            f"SCRIPT #{index}"
+        )
 
         print(
-            "No h_SCRIPT_menudata script element."
+            "Matching terms:",
+            ", ".join(matching_terms),
         )
-
-        return None
-
-    raw = (
-        script.string
-        or script.get_text()
-    ).strip()
-
-    print(
-        "Script found."
-    )
-
-    print(
-        "Raw length:",
-        len(raw),
-    )
-
-    save_text(
-        "menu_data_raw.txt",
-        raw,
-    )
-
-    # Sometimes the script contains JSON wrapped
-    # in JavaScript rather than pure JSON.
-    try:
-
-        data = json.loads(raw)
-
-    except json.JSONDecodeError:
-
-        # Try extracting the first JSON array.
-        match = re.search(
-            r"(\[\s*\{.*\}\s*\])",
-            raw,
-            flags=re.S,
-        )
-
-        if not match:
-
-            print(
-                "No directly parseable JSON array found."
-            )
-
-            return None
-
-        try:
-
-            data = json.loads(
-                match.group(1)
-            )
-
-        except json.JSONDecodeError as exc:
-
-            print(
-                "JSON extraction failed:",
-                exc,
-            )
-
-            return None
-
-    if not isinstance(
-        data,
-        list,
-    ):
 
         print(
-            "Menu data is not a list."
+            "Saved:",
+            filename,
         )
 
-        return None
+        # Try parsing script contents as JSON.
+        parsed = try_parse_json(
+            text
+        )
 
-    print(
-        "Menu item count:",
-        len(data),
-    )
+        if parsed is not None:
 
-    output = OUT_DIR / "menu_data.json"
+            json_name = (
+                f"menu_script_{found}.json"
+            )
 
-    output.write_text(
-        json.dumps(
-            data,
-            indent=2,
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
+            path = (
+                OUT_DIR / json_name
+            )
 
-    print(
-        "Saved:",
-        output,
-    )
+            path.write_text(
+                json.dumps(
+                    parsed,
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
 
-    return data
+            print(
+                "Parsed JSON saved:",
+                path,
+            )
 
 
-def print_visible_menu(
+def inspect_embedded_menu_elements(
     soup: BeautifulSoup,
 ) -> None:
 
     print()
     print("=" * 80)
-    print("VISIBLE MENU TEXT")
+    print("MENU-RELATED HTML ELEMENTS")
     print("=" * 80)
 
-    text = soup.get_text(
-        "\n",
-        strip=True,
-    )
+    # Search elements whose IDs/classes contain menu-related strings.
+    for tag in soup.find_all(
+        True
+    ):
 
-    lines = [
-        re.sub(
-            r"\s+",
-            " ",
-            line.strip(),
+        tag_id = str(
+            tag.get("id", "")
         )
-        for line in text.splitlines()
-        if line.strip()
-    ]
 
-    for line in lines:
+        tag_class = " ".join(
+            tag.get(
+                "class",
+                [],
+            )
+        )
 
-        lower = line.lower()
+        identifier = (
+            tag_id
+            + " "
+            + tag_class
+        ).lower()
 
-        if any(
-            keyword in lower
-            for keyword in [
-                "geiger",
-                "lunch",
+        if not any(
+            x in identifier
+            for x in [
                 "menu",
-                "monday",
-                "tuesday",
-                "wednesday",
-                "thursday",
-                "friday",
+                "calendar",
+                "item",
+                "nutrition",
             ]
         ):
+            continue
 
-            print(line)
+        text = tag.get_text(
+            " ",
+            strip=True,
+        )
+
+        if text:
+
+            print()
+            print(
+                tag.name,
+                "id=",
+                tag.get("id"),
+                "class=",
+                tag.get("class"),
+            )
+
+            print(
+                "TEXT:",
+                text[:500],
+            )
+
+
+# ============================================================================
+# STEP 1
+# ============================================================================
+
+def step_initial_get(
+    session: requests.Session,
+):
+
+    print()
+    print("=" * 80)
+    print("STEP 1 - INITIAL GET")
+    print("=" * 80)
+
+    response = session.get(
+        URL,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+
+    print_response(
+        "INITIAL RESPONSE",
+        response,
+    )
+
+    save_text(
+        "01_initial.html",
+        response.text,
+    )
+
+    return soup_for(
+        response.text
+    )
+
+
+# ============================================================================
+# STEP 2
+# ============================================================================
+
+def step_select_state(
+    session: requests.Session,
+    soup: BeautifulSoup,
+):
+
+    print()
+    print("=" * 80)
+    print("STEP 2 - SELECT MAINE")
+    print("=" * 80)
+
+    data = get_hidden_fields(
+        soup
+    )
+
+    data[
+        "h_UC_State:h_DD_State"
+    ] = STATE
+
+    data[
+        "h_BTN_Submit"
+    ] = "Submit"
+
+    data[
+        "__EVENTTARGET"
+    ] = ""
+
+    data[
+        "__EVENTARGUMENT"
+    ] = ""
+
+    response = session.post(
+        URL,
+        data=data,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+
+    print_response(
+        "MAINE RESPONSE",
+        response,
+    )
+
+    save_text(
+        "02_after_ME_post.html",
+        response.text,
+    )
+
+    return soup_for(
+        response.text
+    )
+
+
+# ============================================================================
+# STEP 3
+# ============================================================================
+
+def step_select_district(
+    session: requests.Session,
+    soup: BeautifulSoup,
+):
+
+    print()
+    print("=" * 80)
+    print(
+        "STEP 3 - SELECT LEWISTON PUBLIC SCHOOLS"
+    )
+    print("=" * 80)
+
+    district_link = None
+
+    for link in soup.find_all("a"):
+
+        text = link.get_text(
+            " ",
+            strip=True,
+        )
+
+        if (
+            DISTRICT_NAME.lower()
+            in text.lower()
+        ):
+
+            district_link = link
+            break
+
+    if district_link is None:
+
+        raise RuntimeError(
+            "Lewiston Public Schools link "
+            "was not found."
+        )
+
+    print(
+        "District link:"
+    )
+
+    print(
+        district_link
+    )
+
+    data = get_hidden_fields(
+        soup
+    )
+
+    data[
+        "__EVENTTARGET"
+    ] = DISTRICT_EVENTTARGET
+
+    data[
+        "__EVENTARGUMENT"
+    ] = ""
+
+    response = session.post(
+        URL,
+        data=data,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+
+    print_response(
+        "LEWISTON RESPONSE",
+        response,
+    )
+
+    save_text(
+        "03_after_Lewiston_post.html",
+        response.text,
+    )
+
+    return soup_for(
+        response.text
+    )
+
+
+# ============================================================================
+# STEP 4
+# ============================================================================
+
+def step_select_geiger(
+    session: requests.Session,
+    soup: BeautifulSoup,
+):
+
+    print()
+    print("=" * 80)
+    print(
+        "STEP 4 - SELECT GEIGER ELEMENTARY SCHOOL"
+    )
+    print("=" * 80)
+
+    print_select(
+        soup,
+        "h_DD_Schools",
+    )
+
+    school_select = get_select(
+        soup,
+        "h_DD_Schools",
+    )
+
+    if school_select is None:
+
+        raise RuntimeError(
+            "h_DD_Schools not found."
+        )
+
+    # Verify the school exists.
+    found = False
+
+    for option in school_select.find_all(
+        "option"
+    ):
+
+        value = option.get(
+            "value",
+            "",
+        )
+
+        text = option.get_text(
+            " ",
+            strip=True,
+        )
+
+        if (
+            value == SCHOOL_VALUE
+            and text.lower()
+            == SCHOOL_NAME.lower()
+        ):
+
+            found = True
+            break
+
+    if not found:
+
+        raise RuntimeError(
+            "Geiger was not found with "
+            f"value={SCHOOL_VALUE!r}."
+        )
+
+    print()
+    print(
+        "Using school:"
+    )
+
+    print(
+        f"  {SCHOOL_NAME}"
+    )
+
+    print(
+        f"  value = {SCHOOL_VALUE}"
+    )
+
+    # IMPORTANT:
+    #
+    # There is NO onchange on h_DD_Schools.
+    # Therefore clicking/selecting it does NOT create
+    # a separate server round-trip.
+    #
+    # We need to carry this selected value into the
+    # subsequent meal postback.
+
+    print()
+    print(
+        "No school postback exists."
+    )
+
+    print(
+        "School will be submitted with the "
+        "Lunch postback."
+    )
+
+    return soup
+
+
+# ============================================================================
+# STEP 5
+# ============================================================================
+
+def step_select_lunch(
+    session: requests.Session,
+    soup: BeautifulSoup,
+):
+
+    print()
+    print("=" * 80)
+    print(
+        "STEP 5 - SELECT LUNCH FOR GEIGER"
+    )
+    print("=" * 80)
+
+    print_select(
+        soup,
+        "h_DD_MealTypes",
+    )
+
+    meal_select = get_select(
+        soup,
+        "h_DD_MealTypes",
+    )
+
+    if meal_select is None:
+
+        raise RuntimeError(
+            "h_DD_MealTypes not found."
+        )
+
+    # Verify Lunch exists.
+    lunch_found = False
+
+    for option in meal_select.find_all(
+        "option"
+    ):
+
+        value = option.get(
+            "value",
+            "",
+        )
+
+        text = option.get_text(
+            " ",
+            strip=True,
+        )
+
+        if (
+            value == MEAL_VALUE
+            and text.lower()
+            == MEAL_NAME.lower()
+        ):
+
+            lunch_found = True
+            break
+
+    if not lunch_found:
+
+        raise RuntimeError(
+            "Lunch was not found with "
+            f"value={MEAL_VALUE!r}."
+        )
+
+    print()
+    print(
+        "Using meal:"
+    )
+
+    print(
+        f"  {MEAL_NAME}"
+    )
+
+    print(
+        f"  value = {MEAL_VALUE}"
+    )
+
+    # ------------------------------------------------------------------------
+    # This is the key correction.
+    #
+    # DO NOT inspect the selected <option> here because PayPAMS returns
+    # "Select School" as selected by default in the HTML.
+    #
+    # We know the user wants Geiger and have already validated its value:
+    #
+    #     Geiger Elementary School = 112
+    #
+    # So explicitly send 112.
+    # ------------------------------------------------------------------------
+
+    data = get_hidden_fields(
+        soup
+    )
+
+    data[
+        "h_DD_Schools"
+    ] = SCHOOL_VALUE
+
+    data[
+        "h_DD_MealTypes"
+    ] = MEAL_VALUE
+
+    data[
+        "__EVENTTARGET"
+    ] = MEAL_EVENTTARGET
+
+    data[
+        "__EVENTARGUMENT"
+    ] = ""
+
+    print()
+    print(
+        "Submitting:"
+    )
+
+    print(
+        f"  h_DD_Schools   = {SCHOOL_VALUE}"
+    )
+
+    print(
+        f"  h_DD_MealTypes = {MEAL_VALUE}"
+    )
+
+    print(
+        f"  __EVENTTARGET  = {MEAL_EVENTTARGET}"
+    )
+
+    response = session.post(
+        URL,
+        data=data,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+
+    print_response(
+        "GEIGER + LUNCH RESPONSE",
+        response,
+    )
+
+    save_text(
+        "05_after_Geiger_Lunch_post.html",
+        response.text,
+    )
+
+    return response, soup_for(
+        response.text
+    )
 
 
 # ============================================================================
@@ -1241,205 +886,180 @@ def main() -> int:
 
     print()
     print("=" * 80)
-    print("PAYPAMS MENU SCRAPER")
+    print("PAYPAMS")
+    print("MAINE -> LEWISTON -> GEIGER -> LUNCH")
     print("=" * 80)
 
     print()
-    print("State   :", STATE_CODE)
+    print("State   :", STATE)
     print("District:", DISTRICT_NAME)
     print("School  :", SCHOOL_NAME)
+    print("School #:", SCHOOL_VALUE)
     print("Meal    :", MEAL_NAME)
+    print("Meal #  :", MEAL_VALUE)
 
     session = requests.Session()
+
     session.headers.update(
         HEADERS
     )
 
-    # ----------------------------------------------------------------------
-    # 1. INITIAL PAGE
-    # ----------------------------------------------------------------------
+    try:
 
-    _, soup1 = initial_get(
-        session
-    )
+        # 1. Initial page.
+        soup1 = step_initial_get(
+            session
+        )
 
-    # ----------------------------------------------------------------------
-    # 2. MAINE
-    # ----------------------------------------------------------------------
+        # 2. Maine.
+        soup2 = step_select_state(
+            session,
+            soup1,
+        )
 
-    _, soup2 = select_maine(
-        session,
-        soup1,
-    )
+        # 3. Lewiston.
+        soup3 = step_select_district(
+            session,
+            soup2,
+        )
 
-    # ----------------------------------------------------------------------
-    # 3. LEWISTON
-    # ----------------------------------------------------------------------
+        # 4. Geiger.
+        step_select_geiger(
+            session,
+            soup3,
+        )
 
-    _, soup3 = select_lewiston(
-        session,
-        soup2,
-    )
+        # 5. Lunch.
+        response5, soup5 = step_select_lunch(
+            session,
+            soup3,
+        )
 
-    # ----------------------------------------------------------------------
-    # 4. GEIGER
-    # ----------------------------------------------------------------------
-
-    _, soup4 = select_geiger(
-        session,
-        soup3,
-    )
-
-    # ----------------------------------------------------------------------
-    # 5. LUNCH
-    # ----------------------------------------------------------------------
-
-    response5, soup5 = select_lunch(
-        session,
-        soup4,
-    )
-
-    # ----------------------------------------------------------------------
-    # 6. EXTRACT / INSPECT MENU
-    # ----------------------------------------------------------------------
-
-    print_visible_menu(
-        soup5
-    )
-
-    menu_items = extract_menu_json(
-        soup5
-    )
-
-    search_for_menu_data(
-        soup5,
-        response5.text,
-    )
-
-    if menu_items is not None:
+        # ------------------------------------------------------------------
+        # Inspect final result.
+        # ------------------------------------------------------------------
 
         print()
         print("=" * 80)
-        print("MENU ITEM SAMPLE")
+        print("FINAL PAGE")
         print("=" * 80)
 
-        for i, item in enumerate(
-            menu_items[:20],
-            1,
-        ):
+        print_menu_text(
+            soup5
+        )
 
-            print()
-            print(
-                f"ITEM #{i}"
-            )
+        inspect_menu_scripts(
+            soup5
+        )
 
-            if isinstance(
-                item,
-                dict,
-            ):
+        inspect_embedded_menu_elements(
+            soup5
+        )
 
-                for key in [
-                    "DistrictID",
-                    "ItemCode",
-                    "ItemName",
-                    "ItemNumber",
-                    "ServingTypeID",
-                    "ServingTypeName",
-                    "ServingSize",
-                    "MenuName",
-                    "DataCalDay",
-                    "CaloriesStr",
-                    "FatGStr",
-                    "SatFatGStr",
-                    "TransFatStr",
-                    "CholMgStr",
-                    "SodMgStr",
-                    "CHOGStr",
-                    "FiberStr",
-                    "SugarGStr",
-                    "AddedSugarGStr",
-                    "ProteinGStr",
-                    "Allergens",
-                    "AttributesStr",
-                    "HealthClaimsStr",
-                ]:
+        # ------------------------------------------------------------------
+        # Summary report.
+        # ------------------------------------------------------------------
 
-                    if key in item:
+        report = {
+            "state": STATE,
+            "district": DISTRICT_NAME,
+            "district_eventtarget": DISTRICT_EVENTTARGET,
+            "school": SCHOOL_NAME,
+            "school_value": SCHOOL_VALUE,
+            "meal": MEAL_NAME,
+            "meal_value": MEAL_VALUE,
+            "meal_eventtarget": MEAL_EVENTTARGET,
+            "final_status": response5.status_code,
+            "final_url": response5.url,
+            "final_response_bytes": len(
+                response5.content
+            ),
+        }
 
-                        print(
-                            f"  {key}: {item[key]}"
-                        )
+        report_path = (
+            OUT_DIR / "final_report.json"
+        )
 
-    # ----------------------------------------------------------------------
-    # REPORT
-    # ----------------------------------------------------------------------
+        report_path.write_text(
+            json.dumps(
+                report,
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
 
-    report = {
-        "state": STATE_CODE,
-        "district": DISTRICT_NAME,
-        "school": SCHOOL_NAME,
-        "meal": MEAL_NAME,
-        "district_eventtarget": DISTRICT_EVENTTARGET,
-        "final_url": response5.url,
-        "final_status": response5.status_code,
-        "final_response_length": len(
-            response5.content
-        ),
-        "menu_item_count": (
-            len(menu_items)
-            if menu_items is not None
-            else None
-        ),
-    }
+        print()
+        print("=" * 80)
+        print("SUCCESS")
+        print("=" * 80)
 
-    report_path = OUT_DIR / "final_report.json"
+        print()
+        print(
+            "Requested path:"
+        )
 
-    report_path.write_text(
-        json.dumps(
-            report,
-            indent=2,
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
+        print(
+            "  Maine"
+        )
 
-    print()
-    print("=" * 80)
-    print("COMPLETE")
-    print("=" * 80)
+        print(
+            "  -> Lewiston Public Schools"
+        )
 
-    print()
-    print(
-        "Target:"
-    )
+        print(
+            "  -> Geiger Elementary School"
+        )
 
-    print(
-        f"  {STATE_CODE} -> "
-        f"{DISTRICT_NAME} -> "
-        f"{SCHOOL_NAME} -> "
-        f"{MEAL_NAME}"
-    )
+        print(
+            "  -> Lunch"
+        )
 
-    print()
-    print(
-        "Final response:"
-    )
+        print()
+        print(
+            "Final HTML:"
+        )
 
-    print(
-        OUT_DIR
-        / "05_after_Lunch_post.html"
-    )
+        print(
+            OUT_DIR
+            / "05_after_Geiger_Lunch_post.html"
+        )
 
-    print()
-    print(
-        "Debug directory:"
-    )
+        print()
+        print(
+            "Debug directory:"
+        )
 
-    print(
-        OUT_DIR.resolve()
-    )
+        print(
+            OUT_DIR.resolve()
+        )
 
-    return 0
+        return 0
+
+    except requests.RequestException as exc:
+
+        print()
+        print(
+            "HTTP ERROR:"
+        )
+
+        print(exc)
+
+        return 1
+
+    except Exception as exc:
+
+        print()
+        print(
+            "ERROR:"
+        )
+
+        print(
+            type(exc).__name__,
+            str(exc),
+        )
+
+        return 1
 
 
 if __name__ == "__main__":

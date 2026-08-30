@@ -795,17 +795,28 @@ def parse_calendar(
 
         return []
 
-    year, month = calendar_month(
+    header_year, header_month = calendar_month(
         soup
     )
 
     print(
         "Calendar month:",
-        year,
-        month,
+        header_year,
+        header_month,
     )
 
     items = []
+
+    # PayPAMS pads the grid with days from the adjacent month so the
+    # weeks line up (e.g. the September grid's first row shows Aug
+    # 30/31 before Sept 1 starts). The header only tells us the month
+    # for the *middle* of the grid, so we track which "phase" we're in
+    # by watching for the day number decreasing between cells:
+    #   -1 = trailing days of the PREVIOUS month (padding at the start)
+    #    0 = the header month itself
+    #   +1 = leading days of the NEXT month (padding at the end)
+    phase = 0
+    prev_day = None
 
     for cell in table.find_all(
         "td"
@@ -832,6 +843,26 @@ def parse_calendar(
         day = int(
             day_text
         )
+
+        if prev_day is None and day != 1:
+            # Grid doesn't start on day 1 -> leading padding from the
+            # previous month.
+            phase = -1
+        elif prev_day is not None and day < prev_day:
+            # Day number dropped -> we've crossed a month boundary.
+            phase += 1
+
+        prev_day = day
+
+        year, month = header_year, header_month
+        month += phase
+
+        if month < 1:
+            month += 12
+            year -= 1
+        elif month > 12:
+            month -= 12
+            year += 1
 
         try:
 

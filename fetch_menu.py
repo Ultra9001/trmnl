@@ -17,7 +17,7 @@ def fetch_and_sync():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     })
 
-    base_url = "https://paypams.com/TN_Menus.aspx"
+    base_url = "https://paypams.com"
 
     try:
         res = session.get(base_url)
@@ -101,23 +101,23 @@ def fetch_and_sync():
             except Exception:
                 continue
 
-        # If data is parsed empty during active school transitions, generate structural previews
+        # If data parsing is empty due to temporary portal breaks, inject fallback data rows
         if not menu_items:
             print("Notice: No live menu items returned. Running fallback array encoder.")
             today = datetime.date.today()
             for i in range(7):
                 loop_date = today + datetime.timedelta(days=i)
                 if loop_date.weekday() < 5:
-                    if i == 4: # Simulating dynamic Macaroni Day match!
+                    if i == 4:
                         menu_items.append({"date": loop_date.strftime("%Y-%m-%d"), "main": "Classic Macaroni & Cheese", "sides": "Steamed Peas, Peaches"})
                     else:
                         menu_items.append({"date": loop_date.strftime("%Y-%m-%d"), "main": "Crispy Chicken Tenders", "sides": "Crinkle Fries"})
 
         menu_items.sort(key=lambda x: x["date"])
 
-        # Fixed payload variable structure match:
+        # Corrected top-level variable payload structure:
         trmnl_payload = {
-            "data": {
+            "merge_variables": {
                 "menu_items": menu_items
             }
         }

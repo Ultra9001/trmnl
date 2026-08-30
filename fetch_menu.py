@@ -91,7 +91,7 @@ def save_json(name, data):
 def soup_for(html):
     return BeautifulSoup(
         html,
-        "html.parser",
+        "lxml",
     )
 
 
@@ -778,38 +778,6 @@ def calendar_month(
     )
 
 
-def dump_cell_debug(
-    year,
-    month,
-    date_value,
-    cell,
-):
-    # Full raw markup for a single calendar-day cell, appended to a
-    # per-month debug file so we can see exactly what PayPAMS sends
-    # for days that don't yield any menu items.
-    name = "cells_{}_{:02d}.html".format(
-        year,
-        month,
-    )
-
-    path = OUT_DIR / name
-
-    with path.open(
-        "a",
-        encoding="utf-8",
-    ) as handle:
-
-        handle.write(
-            "\n\n<!-- ===== {} ===== -->\n".format(
-                date_value.isoformat()
-            )
-        )
-
-        handle.write(
-            cell.prettify()
-        )
-
-
 def parse_calendar(
     soup,
 ):
@@ -836,18 +804,6 @@ def parse_calendar(
         header_year,
         header_month,
     )
-
-    # Fresh debug dump for this month every run, so old runs don't
-    # accumulate into the same file.
-    dump_name = "cells_{}_{:02d}.html".format(
-        header_year,
-        header_month,
-    )
-
-    dump_path = OUT_DIR / dump_name
-
-    if dump_path.exists():
-        dump_path.unlink()
 
     items = []
     empty_days = 0
@@ -921,13 +877,6 @@ def parse_calendar(
         except ValueError:
 
             continue
-
-        dump_cell_debug(
-            header_year,
-            header_month,
-            date_value,
-            cell,
-        )
 
         names = []
 
@@ -1004,11 +953,9 @@ def parse_calendar(
         )
 
     print(
-        "  -> {} day cells with menu items, {} day cells with none "
-        "(see {})".format(
+        "  -> {} day cells with menu items, {} day cells with none".format(
             populated_days,
             empty_days,
-            dump_path,
         )
     )
 

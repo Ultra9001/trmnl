@@ -27,11 +27,11 @@ const DELAY = /(\d+)\s*(?:[-\u2013]|\s)?\s*hour\s+delay|\bdelay(?:ed|s)?\b/;
 main();
 
 async function main() {
-  const calendar = JSON.parse(await readFile(new URL("../calendar.json", import.meta.url), "utf8"));
+  const calendar = JSON.parse(await readFile(new URL("./calendar.json", import.meta.url), "utf8"));
   const detected = await detectStatus();
   const feed = buildFeed(calendar, detected);
 
-  await writeFile(new URL("../feed.json", import.meta.url), JSON.stringify(feed, null, 2) + "\n");
+  await writeFile(new URL("./feed.json", import.meta.url), JSON.stringify(feed, null, 2) + "\n");
 
   console.log(`status: ${feed.current_status}  (source: ${feed.status_source})`);
   for (const a of detected.attempts) {

@@ -1,0 +1,85 @@
+{
+  "school_name": "Geiger Elementary",
+  "academic_year": "2026-2027",
+  "last_updated": "2026-08-29",
+  "current_status": "Weekend",
+  "status_source": "calendar",
+  "status_checked_at": "2026-09-13T20:46:23.416Z",
+  "event_limit": 5,
+  "events": [
+    {
+      "date": "2026-10-07",
+      "title": "Early Release (2hr)",
+      "type": "Early Release"
+    },
+    {
+      "date": "2026-10-09",
+      "title": "Teacher Workshop Day",
+      "type": "No School"
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Indigenous Peoples Day",
+      "type": "No School"
+    },
+    {
+      "date": "2026-10-20",
+      "title": "Parent/Teacher Conferences (8:30-7:00)",
+      "type": "No School"
+    },
+    {
+      "date": "2026-10-22",
+      "title": "Parent/Teacher Conferences (3:30-7:00)",
+      "type": "Evening Event"
+    },
+    {
+      "date": "2026-11-04",
+      "title": "Early Release (2hr)",
+      "type": "Early Release"
+    },
+    {
+      "date": "2026-11-11",
+      "title": "Veterans Day",
+      "type": "No School"
+    },
+    {
+      "date": "2026-11-25",
+      "title": "Teacher Exchange Day",
+      "type": "No School"
+    },
+    {
+      "date": "2026-11-26",
+      "title": "November Break",
+      "type": "No School"
+    },
+    {
+      "date": "2026-11-27",
+      "title": "November Break",
+      "type": "No School"
+    },
+    {
+      "date": "2026-12-02",
+      "title": "Early Release (2hr)",
+      "type": "Early Release"
+    },
+    {
+      "date": "2026-12-21",
+      "title": "December Break",
+      "type": "No School"
+    }
+  ],
+  "_debug": [
+    {
+      "source": "newscentermaine",
+      "error": "HTTP 403"
+    },
+    {
+      "source": "wgme",
+      "error": "HTTP 403"
+    },
+    {
+      "source": "wmtw",
+      "error": "HTTP 403"
+    }
+  ]
+}

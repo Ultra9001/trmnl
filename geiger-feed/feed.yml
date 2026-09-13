@@ -1,0 +1,47 @@
+name: Update feed
+
+on:
+  schedule:
+    # Cron is UTC. This covers 5:00-9:59am Eastern in both EST and EDT, weekdays
+    # only, which is the window LPS actually makes the snow-day call in.
+    - cron: "*/10 9-14 * * 1-5"
+    # Keeps the feed warm the rest of the day.
+    - cron: "0 * * * *"
+  push:
+    paths:
+      - calendar.json
+      - scripts/build.mjs
+      - .github/workflows/feed.yml
+  workflow_dispatch:
+
+# Two runs can overlap during the morning window; serialise them so the
+# commits don't race each other.
+concurrency:
+  group: feed
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: node scripts/build.mjs
+
+      - name: Commit feed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add feed.json
+          # Nothing changed on a quiet day — that's fine, just exit.
+          git diff --staged --quiet && exit 0
+          git commit -m "feed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git pull --rebase --autostash
+          git push

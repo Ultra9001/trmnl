@@ -3,8 +3,8 @@
   "academic_year": "2026-2027",
   "last_updated": "2026-08-29",
   "current_status": "Weekend",
-  "status_source": "calendar",
-  "status_checked_at": "2026-09-13T20:46:23.416Z",
+  "status_source": "newscentermaine",
+  "status_checked_at": "2026-09-13T21:00:24.213Z",
   "event_limit": 5,
   "events": [
     {
@@ -71,15 +71,9 @@
   "_debug": [
     {
       "source": "newscentermaine",
-      "error": "HTTP 403"
-    },
-    {
-      "source": "wgme",
-      "error": "HTTP 403"
-    },
-    {
-      "source": "wmtw",
-      "error": "HTTP 403"
+      "status": "School in Session",
+      "confidence": "definitive",
+      "window": "district not listed"
     }
   ]
 }

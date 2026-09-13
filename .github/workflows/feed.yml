@@ -10,7 +10,7 @@ on:
   push:
     paths:
       - geiger-feed/calendar.json
-      - geiger-feed/scripts/build.mjs
+      - geiger-feed/build.mjs
       - .github/workflows/feed.yml
   workflow_dispatch:
 
@@ -40,7 +40,7 @@ jobs:
       # Full path from the repo root. build.mjs locates calendar.json relative to
       # its own file, so the working directory doesn't matter.
       - name: Build feed
-        run: node geiger-feed/scripts/build.mjs
+        run: node geiger-feed/build.mjs
 
       - name: Commit feed
         run: |

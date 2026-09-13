@@ -85,8 +85,18 @@ function parseStatus(html) {
     .replace(/\s+/g, " ")
     .toLowerCase();
 
-  if (/no (delays or closings|closings or delays|closings reported)/.test(text)) {
-    return { status: "School in Session", confidence: "definitive", window: "empty list" };
+  // Does the runner actually receive the closings data, or just the page shell?
+  // If emptyPhrase and districts are both false on a quiet day, the list is
+  // client-rendered and this source can never report a real closure.
+  const signals = {
+    bytes: html.length,
+    emptyPhrase: /no (delays or closings|closings or delays|closings reported)/.test(text),
+    districtsSeen: (text.match(/\b(school department|public schools|school district|regional school unit|\brsu ?\d+\b)\b/g) || []).length,
+    closingsWord: (text.match(/\bclosings\b/g) || []).length,
+  };
+
+  if (signals.emptyPhrase) {
+    return { status: "School in Session", confidence: "definitive", window: "empty list", signals };
   }
 
   // Full district name first. Bare "Lewiston" is a fallback, guarded so that
@@ -105,6 +115,7 @@ function parseStatus(html) {
       status: "School in Session",
       confidence: rendered ? "definitive" : "weak",
       window: "district not listed",
+      signals,
     };
   }
 
@@ -117,17 +128,18 @@ function parseStatus(html) {
   const delayAt = delayMatch ? win.indexOf(delayMatch[0]) : -1;
 
   if (closedAt !== -1 && (delayAt === -1 || closedAt < delayAt)) {
-    return { status: "No School", confidence: "definitive", window: win };
+    return { status: "No School", confidence: "definitive", window: win, signals };
   }
   if (delayAt !== -1) {
     return {
       status: delayMatch[1] ? `${delayMatch[1]}-Hour Delay` : "Delayed Start",
       confidence: "definitive",
       window: win,
+      signals,
     };
   }
 
-  return { status: "School in Session", confidence: "definitive", window: win };
+  return { status: "School in Session", confidence: "definitive", window: win, signals };
 }
 
 /* ---------- feed ---------- */
@@ -156,7 +168,6 @@ function buildFeed(calendar, detected) {
     current_status: status,
     status_source: detected.source ?? "calendar",
     status_checked_at: new Date().toISOString(),
-    event_limit: 5,
     events: calendar.events.filter((e) => e.date >= today).slice(0, EVENT_LIMIT),
     _debug: detected.attempts,
   };

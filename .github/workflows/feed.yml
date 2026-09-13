@@ -9,8 +9,8 @@ on:
     - cron: "0 * * * *"
   push:
     paths:
-      - calendar.json
-      - scripts/build.mjs
+      - geiger-feed/calendar.json
+      - geiger-feed/scripts/build.mjs
       - .github/workflows/feed.yml
   workflow_dispatch:
 
@@ -33,13 +33,20 @@ jobs:
         with:
           node-version: "22"
 
-      - run: node scripts/build.mjs
+      # If a path is wrong, this log tells you exactly where things actually are.
+      - name: Show repo layout
+        run: find . -path ./.git -prune -o -type f -print | sort
+
+      # Full path from the repo root. build.mjs locates calendar.json relative to
+      # its own file, so the working directory doesn't matter.
+      - name: Build feed
+        run: node geiger-feed/scripts/build.mjs
 
       - name: Commit feed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add feed.json
+          git add geiger-feed/feed.json
           # Nothing changed on a quiet day — that's fine, just exit.
           git diff --staged --quiet && exit 0
           git commit -m "feed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"

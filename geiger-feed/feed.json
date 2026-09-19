@@ -2,9 +2,9 @@
   "school_name": "Geiger Elementary",
   "academic_year": "2026-2027",
   "last_updated": "2026-08-29",
-  "current_status": "School in Session",
+  "current_status": "Weekend",
   "status_source": "newscentermaine",
-  "status_checked_at": "2026-09-19T00:04:08.763Z",
+  "status_checked_at": "2026-09-19T05:39:24.595Z",
   "events": [
     {
       "date": "2026-10-07",
@@ -74,7 +74,7 @@
       "confidence": "definitive",
       "window": "empty list",
       "signals": {
-        "bytes": 114848,
+        "bytes": 114360,
         "emptyPhrase": true,
         "districtsSeen": 0,
         "closingsWord": 9

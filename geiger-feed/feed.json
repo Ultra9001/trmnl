@@ -2,15 +2,10 @@
   "school_name": "Geiger Elementary",
   "academic_year": "2026-2027",
   "last_updated": "2026-08-29",
-  "current_status": "No School",
+  "current_status": "Weekend",
   "status_source": "newscentermaine",
-  "status_checked_at": "2026-10-10T01:36:31.227Z",
+  "status_checked_at": "2026-10-10T08:19:09.825Z",
   "events": [
-    {
-      "date": "2026-10-09",
-      "title": "Teacher Workshop Day",
-      "type": "No School"
-    },
     {
       "date": "2026-10-12",
       "title": "Indigenous Peoples Day",
@@ -65,6 +60,11 @@
       "date": "2026-12-22",
       "title": "December Break",
       "type": "No School"
+    },
+    {
+      "date": "2026-12-23",
+      "title": "December Break",
+      "type": "No School"
     }
   ],
   "_debug": [
@@ -74,7 +74,7 @@
       "confidence": "definitive",
       "window": "empty list",
       "signals": {
-        "bytes": 243828,
+        "bytes": 243612,
         "emptyPhrase": true,
         "districtsSeen": 0,
         "closingsWord": 9

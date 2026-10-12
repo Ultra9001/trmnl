@@ -4,7 +4,7 @@
   "last_updated": "2026-08-29",
   "current_status": "Weekend",
   "status_source": "newscentermaine",
-  "status_checked_at": "2026-10-11T21:48:08.797Z",
+  "status_checked_at": "2026-10-12T01:07:34.079Z",
   "events": [
     {
       "date": "2026-10-12",
@@ -74,7 +74,7 @@
       "confidence": "definitive",
       "window": "empty list",
       "signals": {
-        "bytes": 248080,
+        "bytes": 247898,
         "emptyPhrase": true,
         "districtsSeen": 0,
         "closingsWord": 9

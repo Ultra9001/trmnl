@@ -4,7 +4,7 @@
   "last_updated": "2026-08-29",
   "current_status": "School in Session",
   "status_source": "newscentermaine",
-  "status_checked_at": "2026-10-16T17:16:34.561Z",
+  "status_checked_at": "2026-10-16T17:53:59.582Z",
   "events": [
     {
       "date": "2026-10-20",
@@ -74,7 +74,7 @@
       "confidence": "definitive",
       "window": "empty list",
       "signals": {
-        "bytes": 251515,
+        "bytes": 242796,
         "emptyPhrase": true,
         "districtsSeen": 0,
         "closingsWord": 9

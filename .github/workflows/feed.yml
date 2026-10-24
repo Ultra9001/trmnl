@@ -27,9 +27,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
@@ -50,5 +50,10 @@ jobs:
           # Nothing changed on a quiet day — that's fine, just exit.
           git diff --staged --quiet && exit 0
           git commit -m "feed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          git pull --rebase --autostash
-          git push
+          # Retry the network steps so a brief GitHub hiccup doesn't fail the run.
+          for i in 1 2 3; do
+            git pull --rebase --autostash && git push && exit 0
+            echo "push attempt $i failed; retrying in $((i*10))s"
+            sleep $((i*10))
+          done
+          exit 1
